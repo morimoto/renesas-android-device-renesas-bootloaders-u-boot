@@ -98,6 +98,8 @@ source "drivers/spmi/Kconfig"
 
 source "drivers/sysreset/Kconfig"
 
+source "drivers/tee/Kconfig"
+
 source "drivers/thermal/Kconfig"
 
 source "drivers/timer/Kconfig"
