@@ -16,6 +16,11 @@
 #include <linux/compat.h>
 #include <android_image.h>
 
+/*Support of fastboot bootloader commands*/
+#include <android/bootloader.h>
+#include <malloc.h>
+
+
 #define FASTBOOT_MAX_BLK_WRITE 16384
 
 #define BOOT_PARTITION_NAME "boot"
@@ -485,4 +490,110 @@ void fastboot_mmc_erase(const char *cmd, char *response)
 	printf("........ erased " LBAFU " bytes from '%s'\n",
 	       blks_size * info.blksz, cmd);
 	fastboot_okay(NULL, response);
+}
+
+#define BCB_STORE_PARTITION "misc"
+int get_bootloader_message(struct bootloader_message *out)
+{
+	disk_partition_t info;
+	struct blk_desc *dev_desc;
+	void *buf = NULL;
+	size_t msg_size = sizeof(struct bootloader_message);
+	size_t blks_count, blks;
+	int ret;
+	struct mmc *mmc = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+
+	if (mmc == NULL) {
+		pr_err("invalid mmc device\n");
+		return -EIO;
+	}
+
+	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		return -EIO;
+	}
+
+	ret = part_get_info_by_name_or_alias(dev_desc, BCB_STORE_PARTITION, &info);
+	if (ret < 0) {
+		pr_err("cannot find partition: '%s'\n", BCB_STORE_PARTITION);
+		return -EIO;
+	}
+
+
+	/* Calc count of blocks */
+	blks_count = (msg_size / info.blksz);
+	if ((msg_size % info.blksz) != 0) {
+		blks_count++;
+	}
+
+	buf = malloc(info.blksz * blks_count);
+	if (!buf) {
+		printf("Error: Out of memory in %s\n", __func__);
+		return -ENOMEM;
+	}
+
+	blks = blk_dread(dev_desc, info.start, blks_count, (void *) buf);
+
+
+	if (blks != blks_count) {
+		printf("Can't read bootloader command\n");
+		free(buf);
+		return -EIO;
+	}
+
+	memcpy(out, buf, sizeof(struct bootloader_message));
+
+	free(buf);
+	return 0;
+}
+
+int set_bootloader_message(const struct bootloader_message *in)
+{
+	disk_partition_t info;
+	struct blk_desc *dev_desc;
+	void *buf = NULL;
+	size_t msg_size = sizeof(struct bootloader_message);
+	size_t blks_count, blks;
+	int ret;
+	struct mmc *mmc = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+
+	if (mmc == NULL) {
+		pr_err("invalid mmc device\n");
+		return -EIO;
+	}
+
+	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		return -EIO;
+	}
+
+	ret = part_get_info_by_name_or_alias(dev_desc, BCB_STORE_PARTITION, &info);
+	if (ret < 0) {
+		pr_err("cannot find partition: '%s'\n", BCB_STORE_PARTITION);
+		return -EIO;
+	}
+
+	/* Calc count of blocks */
+	blks_count = (msg_size / info.blksz);
+	if ((msg_size % info.blksz) != 0) {
+		blks_count++;
+	}
+
+	buf = malloc(info.blksz * blks_count);
+	if (!buf) {
+		printf("Error: Out of memory in %s\n", __func__);
+		return -ENOMEM;
+	}
+
+	memcpy(buf, in, msg_size);
+	blks = blk_dwrite(dev_desc, info.start, blks_count, (void *) buf);
+	free(buf);
+
+	if(blks != blks_count) {
+		printf("BCB Write error!\n");
+		return -EIO;
+	}
+	return 0;
 }
