@@ -13,6 +13,7 @@
 #include <common.h>
 #include <fastboot.h>
 #include <net/fastboot.h>
+#include <android/bootloader.h>
 
 /**
  * fastboot_buf_addr - base address of the fastboot download buffer
@@ -86,9 +87,14 @@ void fastboot_okay(const char *reason, char *response)
  * which sets whatever flag your board specific Android bootloader flow
  * requires in order to re-enter the bootloader.
  */
-int __weak fastboot_set_reboot_flag(void)
+int fastboot_set_reboot_flag(void)
 {
-	return -ENOSYS;
+	struct bootloader_message boot;
+
+	memset(&boot, 0, sizeof(boot));
+	strlcpy(boot.command, "bootloader", sizeof(boot.command));
+
+	return set_bootloader_message(&boot);
 }
 
 /**
