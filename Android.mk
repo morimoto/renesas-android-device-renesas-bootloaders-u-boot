@@ -20,7 +20,7 @@ PRODUCT_OUT_ABS := $(abspath $(PRODUCT_OUT))
 UBOOT_SRC           := $(abspath ./device/renesas/bootloaders/u-boot)
 UBOOT_OUT           := $(PRODUCT_OUT_ABS)/obj/UBOOT_OBJ
 UBOOT_KCFLAGS       := -fgnu89-inline
-UBOOT_CROSS_COMPILE := $(abspath ./prebuilts/gcc/linux-x86/aarch64/aarch64-linux-gnu/bin/aarch64-linux-gnu-)
+UBOOT_CROSS_COMPILE := $(BSP_CROSS_COMPILE)
 
 ifeq ($(H3_OPTION),8GB)
     UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP4_2
