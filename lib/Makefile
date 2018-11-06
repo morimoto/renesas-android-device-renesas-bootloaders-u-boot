@@ -106,4 +106,5 @@ else
 obj-y += vsprintf.o strto.o strmhz.o
 endif
 
+obj-y += cmdline.o
 subdir-ccflags-$(CONFIG_CC_OPTIMIZE_LIBS_FOR_SPEED) += -O2
