@@ -137,4 +137,6 @@ quiet_cmd_build_OID_registry = GEN     $@
 
 clean-files     += oid_registry_data.c
 
+obj-y += cmdline.o
+
 subdir-ccflags-$(CONFIG_CC_OPTIMIZE_LIBS_FOR_SPEED) += -O2
