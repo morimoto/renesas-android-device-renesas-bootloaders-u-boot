@@ -9,7 +9,15 @@
 #define _AVB_VERIFY_H
 
 #include <../lib/libavb/libavb.h>
+#include <avb_ab/libavb_ab.h>
+
 #include <mmc.h>
+
+enum CMDLINE_FLAGS {
+	LOAD_OLD_ARGS = 1,
+	LOAD_AVB_ARGS = 2,
+};
+
 
 #define AVB_MAX_ARGS			1024
 #define VERITY_TABLE_OPT_RESTART	"restart_on_corruption"
@@ -92,5 +100,20 @@ static inline int get_boot_device(AvbOps *ops)
 
 	return -1;
 }
+
+/*Added for RCar boards support*/
+
+char *prepare_bootcmd_compat(AvbOps *ops,
+						int boot_device,
+						AvbABFlowResult ab_result,
+						bool unlocked,
+						AvbSlotVerifyData *slot_data,
+						unsigned int flags
+						);
+
+
+#define set_compat_args(dev) \
+		prepare_bootcmd_compat(NULL, dev, 0, false, NULL, LOAD_OLD_ARGS)
+
 
 #endif /* _AVB_VERIFY_H */
