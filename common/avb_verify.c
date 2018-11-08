@@ -796,6 +796,11 @@ int avb_is_slot_bootable(unsigned int slot, bool *bootable)
 	return 0;
 }
 
+int fastboot_set_active_slot(int slot_idx)
+{
+	return 0;
+}
+
 const char *cb_get_slot_char(void)
 {
     static const char *cur_slot = NULL;

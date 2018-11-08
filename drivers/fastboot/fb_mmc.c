@@ -326,6 +326,57 @@ int fastboot_mmc_get_part_info(char *part_name, struct blk_desc **dev_desc,
 
 	return r;
 }
+static void fb_handle_bootloader_flashing(void *download_buffer,
+			unsigned int download_bytes, char *response)
+{
+	const int avb_active_slot = fastboot_get_slot_index();
+	const int hw_part = avb_active_slot == 0 ? 1 : 2;
+	const char *slot_suffix = (hw_part == 1) ? "_a" : "_b";
+	struct mmc *mmc = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	const uint32_t write_blocks = (download_bytes % MMC_MAX_BLOCK_LEN) ?
+		((download_bytes >> 9) + 1) : (download_bytes >> 9);
+	uint32_t block_count = 0;
+	struct blk_desc *dev_desc;
+
+	if (write_blocks > BOOTLOADER_BLK_SIZE) {
+		pr_err("too large for partition: 'bootloader%s'\n", slot_suffix);
+		fastboot_fail("too large for partition", response);
+		return;
+	}
+
+	puts("Flashing Raw Image\n");
+
+	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
+		pr_err("invalid mmc device\n");
+		fastboot_fail("failed to get block device", response);
+		return;
+	}
+
+	mmc_switch_part(mmc, hw_part);
+	block_count = blk_dwrite(dev_desc, /* The begin of hw partition */0,
+		write_blocks, download_buffer);
+
+	if (block_count != write_blocks) {
+		pr_err("failed writing to device %d\n", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+		fastboot_fail("failed writing to device", response);
+		return;
+	}
+
+	/*
+	 * For excluding situations, when boot is succeeded,
+	 * (@success_boot flag is set) and we reflash the bootloader
+	 * partition via fastboot. In this case if the bootloader is corrupted,
+	 * bl2 will not change the slot so we need to reset avb retry counter.
+	 */
+	fastboot_set_active_slot(avb_active_slot);
+
+	mmc_switch_part(mmc, MMC_DEFAULT_PARTITION);
+	printf("........ wrote %u bytes to 'bootloader%s'\n", block_count * MMC_MAX_BLOCK_LEN,
+		slot_suffix);
+	fastboot_okay(NULL, response);
+	return;
+}
 
 /**
  * fastboot_mmc_flash_write() - Write image to eMMC for fastboot
@@ -340,6 +391,7 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 {
 	struct blk_desc *dev_desc;
 	disk_partition_t info;
+	const char *bootloader_part_name = "bootloader";
 
 	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
 	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
@@ -400,9 +452,14 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 #endif
 
 	if (part_get_info_by_name_or_alias(dev_desc, cmd, &info) < 0) {
-		pr_err("cannot find partition: '%s'\n", cmd);
-		fastboot_fail("cannot find partition", response);
-		return;
+		if (!strncmp(cmd, bootloader_part_name, strlen(bootloader_part_name))) {
+				fb_handle_bootloader_flashing(download_buffer, download_bytes, response);
+				return;
+		} else {
+			pr_err("cannot find partition: '%s'\n", cmd);
+			fastboot_fail("cannot find partition", response);
+			return;
+		}
 	}
 
 	if (is_sparse_image(download_buffer)) {
