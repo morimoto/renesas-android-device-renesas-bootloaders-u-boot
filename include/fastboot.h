@@ -74,6 +74,11 @@ int fastboot_get_lock_status(int *mmc_lock, int *ipl_lock);
 void fastboot_cb_flashing(char *cmd, char *response);
 void fastboot_cb_oem(char *cmd, char *response);
 
+/*returns current boot slot index*/
+int fastboot_get_slot_index(void);
+int fastboot_set_active_slot(int slot_idx);
+const char *cb_get_slot_char(void);
+
 
 /**
  * fastboot_response() - Writes a response of the form "$tag$reason".
