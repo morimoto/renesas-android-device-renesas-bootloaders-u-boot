@@ -461,3 +461,8 @@ static void rx_handler_command(struct usb_ep *ep, struct usb_request *req)
 	req->actual = 0;
 	usb_ep_queue(ep, req, 0);
 }
+
+void fastboot_set_reset_completion(void)
+{
+	fastboot_func->in_req->complete = compl_do_reset;
+}
