@@ -82,6 +82,16 @@ static const struct {
 		.command = "set_active",
 		.dispatch = okay
 	},
+	[FASTBOOT_COMMAND_FLASHING] = {
+		.command = "flashing",
+		.dispatch = fastboot_cb_flashing,
+	},
+	[FASTBOOT_COMMAND_OEM] = {
+		.command = "oem",
+		.dispatch = fastboot_cb_oem,
+	},
+
+/*This has to be disabled for Rcar platform*/
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_FORMAT)
 	[FASTBOOT_COMMAND_OEM_FORMAT] = {
 		.command = "oem format",
@@ -104,10 +114,9 @@ int fastboot_handle_command(char *cmd_string, char *response)
 	char *cmd_parameter;
 
 	cmd_parameter = cmd_string;
-	strsep(&cmd_parameter, ":");
 
 	for (i = 0; i < FASTBOOT_COMMAND_COUNT; i++) {
-		if (!strcmp(commands[i].command, cmd_string)) {
+		if (!strncmp(commands[i].command, cmd_string, strlen(commands[i].command))) {
 			if (commands[i].dispatch) {
 				commands[i].dispatch(cmd_parameter,
 							response);
@@ -146,6 +155,7 @@ static void okay(char *cmd_parameter, char *response)
  */
 static void getvar(char *cmd_parameter, char *response)
 {
+	strsep(&cmd_parameter, ":");
 	fastboot_getvar(cmd_parameter, response);
 }
 
@@ -159,6 +169,7 @@ static void download(char *cmd_parameter, char *response)
 {
 	char *tmp;
 
+	strsep(&cmd_parameter, ":");
 	if (!cmd_parameter) {
 		fastboot_fail("Expected command parameter", response);
 		return;
@@ -268,6 +279,7 @@ void fastboot_data_complete(char *response)
  */
 static void flash(char *cmd_parameter, char *response)
 {
+	strsep(&cmd_parameter, ":");
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 	fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
 				 response);
@@ -289,6 +301,7 @@ static void flash(char *cmd_parameter, char *response)
  */
 static void erase(char *cmd_parameter, char *response)
 {
+	strsep(&cmd_parameter, ":");
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 	fastboot_mmc_erase(cmd_parameter, response);
 #endif
