@@ -85,4 +85,11 @@
 #define CONFIG_SH_SCIF_CLK_FREQ		65000000
 #endif
 
+/*
+ * This define is specify the bootloader partition size
+ * in mmcblk0boot0/1.
+ * 4096 blocks = 2Mb
+ */
+#define BOOTLOADER_BLK_SIZE			(4096)
+
 #endif	/* __RCAR_GEN3_COMMON_H */
