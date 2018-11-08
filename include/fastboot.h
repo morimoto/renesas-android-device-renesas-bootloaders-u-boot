@@ -50,6 +50,8 @@ enum {
 #define FASTBOOT_OEM_PARTITIONS		16
 #endif
 
+#define MMC_DEFAULT_PARTITION 0
+
 struct oem_part_info {
     char *          name;       /* partition name */
     char *          slot;       /* partition slot a or b */

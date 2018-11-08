@@ -37,7 +37,6 @@ DECLARE_GLOBAL_DATA_PTR;
 #define FB_OK				(0)
 #define FB_ERR_GENERIC 	(-1)
 #define FB_ERR_CRC		(-2)
-#define MMC_DEFAULT_PARTITION 0
 
 static int64_t get_part_size(int dev, char *part_name)
 {

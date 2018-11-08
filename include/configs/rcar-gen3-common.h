@@ -73,4 +73,11 @@
 	"tftp 0x48000000 Image-"CONFIG_DEFAULT_FDT_FILE"; " \
 	"booti 0x48080000 - 0x48000000"
 
+/*
+ * This define is specify the bootloader partition size
+ * in mmcblk0boot0/1.
+ * 4096 blocks = 2Mb
+ */
+#define BOOTLOADER_BLK_SIZE			(4096)
+
 #endif	/* __RCAR_GEN3_COMMON_H */
