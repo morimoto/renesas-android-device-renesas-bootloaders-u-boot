@@ -217,6 +217,13 @@ config CMD_BOOTI
 	help
 	  Boot an AArch64 Linux Kernel image from memory.
 
+config CMD_BOOTA
+	bool "boota"
+	depends on ARM64
+	default y
+	help
+	  Boot an Android image from memory.
+
 config CMD_BOOTEFI
 	bool "bootefi"
 	depends on EFI_LOADER

@@ -367,7 +367,7 @@ static struct mmc_part *get_partition(AvbOps *ops, const char *partition)
 	}
 
 	ret = part_get_info_by_name(mmc_blk, partition, &part->info);
-	if (!ret) {
+	if (ret < 0) {
 		printf("Can't find partition '%s'\n", partition);
 		goto err;
 	}
@@ -526,7 +526,7 @@ static AvbIOResult mmc_byte_io(AvbOps *ops,
  *      AVB_IO_RESULT_ERROR_NO_SUCH_PARTITION, if there is no partition with
  *      the given name
  */
-static AvbIOResult read_from_partition(AvbOps *ops,
+AvbIOResult read_from_partition(AvbOps *ops,
 				       const char *partition_name,
 				       s64 offset_from_partition,
 				       size_t num_bytes,
@@ -776,4 +776,164 @@ void avb_ops_free(AvbOps *ops)
 
 	if (ops_data)
 		avb_free(ops_data);
+}
+
+/*Temporary stubs for Libavb*/
+int fastboot_get_slot_index(void)
+{
+	return 0;
+}
+
+int avb_is_slot_successful(unsigned int slot, bool *successful)
+{
+	*successful = true;
+	return 0;
+}
+
+int avb_is_slot_bootable(unsigned int slot, bool *bootable)
+{
+	*bootable = true;
+	return 0;
+}
+
+const char *cb_get_slot_char(void)
+{
+    static const char *cur_slot = NULL;
+    int slot_index = fastboot_get_slot_index();
+
+    if (slot_index == 0) {
+        cur_slot = "a";
+    } else if (slot_index == 1) {
+        cur_slot = "b";
+    }
+    return cur_slot;
+}
+
+static bool avb_is_oem_key(AvbOps *ops)
+{
+	/*
+	*We don't use OEM key at the moment;
+	*/
+	return false;
+}
+
+
+/*Prepare compatible bootcmd to support compatibility with previous releases that didn't
+*support libavbb
+*/
+#define OLD_CMDLINE_SIZE 2048
+char *prepare_bootcmd_compat(AvbOps *ops, int boot_device,
+								AvbABFlowResult ab_result,
+								bool unlocked,
+								AvbSlotVerifyData *slot_data,
+								unsigned int flags
+								)
+{
+	char *bootmode = NULL, *bl_cmdline;
+	char *extra_args, *bl_serial, *cmdline = NULL;
+	AvbOps *avb_ops = NULL;
+
+	bl_cmdline = env_get("bootargs");
+	if (bl_cmdline)
+		cmdline = append_cmd_line(" ", bl_cmdline);
+
+	bl_serial = env_get("serialno");
+	if (bl_serial) {
+		cmdline = avb_strdupv(cmdline ? cmdline : " ",
+			" androidboot.serialno=",
+			bl_serial,
+			" ",
+			NULL);
+	}
+	bootmode = env_get("bootmode");
+	if (bootmode && !strcmp(bootmode, "recovery")) {
+		extra_args = env_get("bootargs_recovery");
+	} else {
+		extra_args = env_get("bootargs_android");
+		/* Pass 'skip_initramfs' if  we're not booting into recovery
+		 * mode. Also pass the selected slot in androidboot.slot_suffix.
+		 */
+		cmdline = append_cmd_line(cmdline, "skip_initramfs ");
+	}
+	if (extra_args)
+		cmdline = append_cmd_line(cmdline, extra_args);
+
+	/*For old args we ignore ab_result and lock state*/
+	if (flags & LOAD_OLD_ARGS) {
+		const char *slot_suffix = cb_get_slot_char();
+		char part[32];
+		char buffer[64];
+		size_t buf_size = sizeof(buffer);
+		char old_cmdline[OLD_CMDLINE_SIZE];
+
+		snprintf(old_cmdline, sizeof(old_cmdline),
+					"androidboot.slot_suffix=_%s ", slot_suffix);
+		cmdline = append_cmd_line(cmdline, old_cmdline);
+		/*Set default verity mode for old style boot*/
+		cmdline = append_cmd_line(cmdline, "androidboot.veritymode=eio");
+
+		if (!ops) {
+			avb_ops = avb_ops_alloc(boot_device);
+		} else {
+			avb_ops = ops;
+		}
+		if (avb_ops) {
+			snprintf(part, sizeof(part), "system_%s", slot_suffix);
+			if (avb_ops->get_unique_guid_for_partition(avb_ops, part, buffer,
+						buf_size) == AVB_IO_RESULT_OK) {
+				memset(old_cmdline, 0, sizeof(old_cmdline));
+				snprintf(old_cmdline, sizeof(old_cmdline),
+					"rootwait ro root=\"PARTUUID=%s\" ", buffer);
+				cmdline = append_cmd_line(cmdline, old_cmdline);
+			}
+		}
+		if (avb_ops != ops)
+			avb_free(avb_ops);
+	} else if (flags & LOAD_AVB_ARGS ) {
+		/*We are booting using libavb, so we need to set up boot state*/
+		if (unlocked) {
+			/*We're ignoring corruption in unlocked state*/
+			extra_args = avb_set_ignore_corruption(slot_data->cmdline);
+			/*If we failed, let's leave it as is*/
+			if (!extra_args)
+				extra_args = slot_data->cmdline;
+
+			cmdline = append_cmd_line(cmdline, extra_args);
+			extra_args = avb_set_state(ops, AVB_ORANGE);
+			if (extra_args)
+				cmdline = append_cmd_line(cmdline, extra_args);
+		} else {
+			/*We are in locked state */
+			if (ab_result != AVB_AB_FLOW_RESULT_OK){
+				/*RED ??? We are not suppose to be here*/
+				avb_fatal("Verification Error in Locked State!\n");
+				return NULL;
+			} else {
+				/*Enfocrce verity check in locked mode*/
+				extra_args = avb_set_enforce_verity(slot_data->cmdline);
+				if (!extra_args)
+					extra_args = slot_data->cmdline;
+
+				cmdline = append_cmd_line(cmdline, extra_args);
+				if (avb_is_oem_key(ops)) {
+					extra_args = avb_set_state(ops, AVB_GREEN);
+				} else {
+					avb_printv("AVB Key is not OEM key\n", NULL);
+					extra_args = avb_set_state(ops, AVB_YELLOW);
+				}
+				if (extra_args)
+					cmdline = append_cmd_line(cmdline, extra_args);
+			}
+		}
+
+		cmdline = avb_strdupv(cmdline,
+				" androidboot.slot_suffix=",
+				slot_data->ab_suffix,
+				" ",
+				NULL);
+	}
+	if (cmdline)
+		env_set("bootargs", cmdline);
+
+	return cmdline;
 }
