@@ -24,6 +24,7 @@
 enum {
 	FASTBOOT_COMMAND_GETVAR = 0,
 	FASTBOOT_COMMAND_DOWNLOAD,
+	FASTBOOT_COMMAND_FLASHING, /*Flashing should go before the "flash" to avoid confusing with strncmp*/
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
 	FASTBOOT_COMMAND_FLASH,
 	FASTBOOT_COMMAND_ERASE,
@@ -33,12 +34,46 @@ enum {
 	FASTBOOT_COMMAND_REBOOT,
 	FASTBOOT_COMMAND_REBOOT_BOOTLOADER,
 	FASTBOOT_COMMAND_SET_ACTIVE,
+	FASTBOOT_COMMAND_OEM,
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_FORMAT)
 	FASTBOOT_COMMAND_OEM_FORMAT,
 #endif
 
 	FASTBOOT_COMMAND_COUNT
 };
+
+//FIXME: Move this to more appropriate place
+/* The partitions count on eMMC */
+#ifdef ANDROID_MMC_ONE_SLOT
+#define FASTBOOT_OEM_PARTITIONS		10
+#else
+#define FASTBOOT_OEM_PARTITIONS		16
+#endif
+
+struct oem_part_info {
+    char *          name;       /* partition name */
+    char *          slot;       /* partition slot a or b */
+    char *          fs;         /* partition file system */
+    size_t          size;       /* partition size Bytes */
+};
+
+#define FASTBOOT_MAGIC_LOCKED       0xC00010FF
+#define FASTBOOT_MAGIC_UNLOCKED     0x00000000
+
+#define MAX_ROLLBACK_LOCATIONS	4
+struct fastboot_control_block {
+    unsigned int    ipl_lock;   /* magic word: locked/unlocked */
+    unsigned int    mmc_lock;   /* magic word ... */
+    uint64_t    	  rollback_cnt[MAX_ROLLBACK_LOCATIONS];   /* rollback counter ... */
+    unsigned short  crc;
+}__attribute__((packed));
+
+int fastboot_load_control_block(struct fastboot_control_block *ctrlb);
+int fastboot_save_control_block(struct fastboot_control_block *ctrlb);
+int fastboot_get_lock_status(int *mmc_lock, int *ipl_lock);
+void fastboot_cb_flashing(char *cmd, char *response);
+void fastboot_cb_oem(char *cmd, char *response);
+
 
 /**
  * fastboot_response() - Writes a response of the form "$tag$reason".
@@ -150,5 +185,12 @@ void fastboot_data_download(const void *fastboot_data,
  * Set image_size and ${filesize} to the total size of the downloaded image.
  */
 void fastboot_data_complete(char *response);
+
+/**
+ * fastboot_data_complete() - Reset board on completion
+ */
+
+void fastboot_set_reset_completion(void);
+
 
 #endif /* _FASTBOOT_H_ */
