@@ -615,13 +615,11 @@ static AvbIOResult read_rollback_index(AvbOps *ops,
 				       size_t rollback_index_slot,
 				       u64 *out_rollback_index)
 {
-	/* For now we always return 0 as the stored rollback index. */
-	printf("%s not supported yet\n", __func__);
+	if (fastboot_get_rollback_index(rollback_index_slot,
+							   out_rollback_index) == 0)
+		return AVB_IO_RESULT_OK;
 
-	if (out_rollback_index)
-		*out_rollback_index = 0;
-
-	return AVB_IO_RESULT_OK;
+	return AVB_IO_RESULT_ERROR_IO;
 }
 
 /**
@@ -639,10 +637,10 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
 					size_t rollback_index_slot,
 					u64 rollback_index)
 {
-	/* For now this is a no-op. */
-	printf("%s not supported yet\n", __func__);
+	if (fastboot_set_rollback_index(rollback_index_slot, rollback_index) == 0)
+		return AVB_IO_RESULT_OK;
 
-	return AVB_IO_RESULT_OK;
+	return AVB_IO_RESULT_ERROR_IO;
 }
 
 /**
@@ -658,13 +656,16 @@ static AvbIOResult write_rollback_index(AvbOps *ops,
  */
 static AvbIOResult read_is_device_unlocked(AvbOps *ops, bool *out_is_unlocked)
 {
-	/* For now we always return that the device is unlocked. */
+	int locked = 0;
 
-	printf("%s not supported yet\n", __func__);
+	if (!out_is_unlocked || !ops)
+		return AVB_IO_RESULT_ERROR_IO;
 
-	*out_is_unlocked = true;
-
-	return AVB_IO_RESULT_OK;
+	if (fastboot_get_lock_status(&locked, NULL) == 0) {
+		*out_is_unlocked = !locked;
+		return AVB_IO_RESULT_OK;
+	}
+	return AVB_IO_RESULT_ERROR_IO;
 }
 
 /**
