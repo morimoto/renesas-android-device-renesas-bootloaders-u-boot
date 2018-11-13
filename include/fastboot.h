@@ -80,6 +80,8 @@ void fastboot_cb_oem(char *cmd, char *response);
 int fastboot_get_slot_index(void);
 int fastboot_set_active_slot(int slot_idx);
 const char *cb_get_slot_char(void);
+int fastboot_get_rollback_index(size_t location, uint64_t *idx);
+int fastboot_set_rollback_index(size_t location, uint64_t idx);
 
 
 /**
