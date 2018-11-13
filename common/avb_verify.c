@@ -750,7 +750,7 @@ AvbOps *avb_ops_alloc(int boot_device)
 		return NULL;
 
 	ops_data->ops.user_data = ops_data;
-
+	ops_data->ops.ab_ops = &ops_data->ab_ops;
 	ops_data->ops.read_from_partition = read_from_partition;
 	ops_data->ops.write_to_partition = write_to_partition;
 	ops_data->ops.validate_vbmeta_public_key = validate_vbmeta_public_key;
@@ -761,6 +761,10 @@ AvbOps *avb_ops_alloc(int boot_device)
 		get_unique_guid_for_partition;
 	ops_data->ops.get_size_of_partition = get_size_of_partition;
 	ops_data->mmc_dev = boot_device;
+
+	ops_data->ab_ops.ops = &ops_data->ops;
+	ops_data->ab_ops.read_ab_metadata = avb_ab_data_read;
+	ops_data->ab_ops.write_ab_metadata = avb_ab_data_write;
 
 	return &ops_data->ops;
 }

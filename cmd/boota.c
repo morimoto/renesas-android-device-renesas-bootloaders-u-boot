@@ -813,26 +813,236 @@ static int do_boot_mmc(struct blk_desc *dev_desc,
 				(ulong)fdt_overlay_addr);
 }
 
-static char *simple_itohex(ulong i)
+static char hexc[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static char *hex_to_str(u8 *data, size_t size)
 {
-	/* 16 digits plus null terminator, good for 64-bit or smaller ints */
-	static char local[17];
-	char *p = &local[16];
+	static char load_addr[32];
+	char *paddr = &load_addr[31];
+	int i;
 
-	*p-- = '\0';
-	do {
-		*p-- = '0' + i % 16;
-		i /= 16;
-	} while (i > 0);
-	return p + 1;
+	if (size > sizeof(load_addr) - 1)
+		return NULL;
+
+	*paddr-- =  '\0';
+	for (i = 0; i < size; i++) {
+		*paddr-- = (hexc[data[i] & 0x0f]);
+		*paddr-- = (hexc[(data[i] >> 4) & 0x0f]);
+	}
+	return paddr + 1;
 }
+
 
 static void build_new_args(ulong addr, char *argv[4]) {
 	struct andr_img_hdr *hdr = map_sysmem(addr, 0);
 
-	argv[1] = avb_strdup(simple_itohex(hdr->kernel_addr));
+	argv[1] = avb_strdup(hex_to_str((u8 *)&hdr->kernel_addr, sizeof(hdr->kernel_addr)));
 	argv[2] = "-";
-	argv[3] = avb_strdup(simple_itohex(hdr->second_addr));
+	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->second_addr, sizeof(hdr->second_addr)));
+}
+
+/*
+ * Sets corret boot address if image was loaded
+* using fastboot
+*/
+#define DEFAULT_RD_ADDR 0x49100000
+#define DEFAULT_SECOND_ADDR 0x48000800
+
+/*We need virtual device and partition to support fastboot boot command*/
+#define VIRT_BOOT_DEVICE "-1"
+#define VIRT_BOOT_PARTITION "RAM"
+
+void do_correct_boot_address(ulong hdr_addr)
+{
+	struct andr_img_hdr *hdr = map_sysmem(hdr_addr, 0);
+	hdr->kernel_addr = CONFIG_SYS_LOAD_ADDR;
+	hdr->ramdisk_addr = DEFAULT_RD_ADDR;
+	hdr->second_addr = DEFAULT_SECOND_ADDR;
+}
+
+static inline void avb_set_boot_device(AvbOps *ops, int boot_device)
+{
+	struct AvbOpsData *data = (struct AvbOpsData *) ops->user_data;
+	data->mmc_dev = boot_device;
+}
+
+
+#define DEFAULT_AVB_DELAY 5
+int avb_main(int boot_device, char **argv)
+{
+	AvbOps *ops;
+	AvbABFlowResult ab_result;
+	AvbSlotVerifyData *slot_data;
+	const char *requested_partitions[] = {"boot", "dtb", "dtbo", NULL};
+	bool unlocked = false;
+	char *cmdline = NULL;
+	bool abort = false;
+	int boot_delay;
+	unsigned long ts;
+	const char *avb_delay  = env_get("avb_delay");
+	AvbPartitionData *avb_boot_part = NULL, *avb_dtb_part = NULL,
+			*avb_dtbo_part = NULL, avb_ram_data;
+	AvbSlotVerifyFlags flags = AVB_SLOT_VERIFY_FLAGS_NONE;
+
+	boot_delay = avb_delay ? (int)simple_strtol(avb_delay, NULL, 10)
+						: DEFAULT_AVB_DELAY;
+
+	avb_printv("AVB-based bootloader using libavb version ",
+		avb_version_string(),
+		"\n",
+		NULL);
+
+	ops = avb_ops_alloc(boot_device);
+	if (!ops) {
+		avb_fatal("Error allocating AvbOps.\n");
+	}
+
+	if (ops->read_is_device_unlocked(ops, &unlocked) != AVB_IO_RESULT_OK) {
+		avb_fatal("Error determining whether device is unlocked.\n");
+	}
+	avb_printv("read_is_device_unlocked() ops returned that device is ",
+		unlocked ? "UNLOCKED" : "LOCKED",
+		"\n",
+		NULL);
+
+	printf("boot_device = %d\n", boot_device);
+
+	if (boot_device == (int) simple_strtoul(VIRT_BOOT_DEVICE, NULL, 10)) {
+		/*
+		* We are booting by fastboot boot command
+		* This is only supported in unlocked state
+		*/
+		printf("setting ram partition..\n");
+		if (unlocked) {
+			requested_partitions[0] = "dtb";
+			requested_partitions[1] = "dtbo";
+			requested_partitions[2] = NULL;
+			avb_ram_data.partition_name = VIRT_BOOT_PARTITION;
+			avb_ram_data.data = (uint8_t*)simple_strtol(argv[0], NULL, 10);
+			avb_boot_part = &avb_ram_data;
+			boot_device = CONFIG_FASTBOOT_FLASH_MMC_DEV;
+			do_correct_boot_address((ulong) avb_ram_data.data);
+		} else {
+			avb_fatal("Fastboot boot not supported in locked state!\n");
+			return -1;
+		}
+	}
+	avb_set_boot_device(ops, boot_device);
+	if (unlocked)
+		flags |= AVB_SLOT_VERIFY_FLAGS_ALLOW_VERIFICATION_ERROR;
+
+	ab_result = avb_ab_flow(ops->ab_ops,
+			requested_partitions,
+			flags,
+			AVB_HASHTREE_ERROR_MODE_RESTART_AND_INVALIDATE,
+			&slot_data);
+	avb_printv("avb_ab_flow() returned ",
+		avb_ab_flow_result_to_string(ab_result),
+		"\n",
+		NULL);
+	switch (ab_result) {
+	case AVB_AB_FLOW_RESULT_OK_WITH_VERIFICATION_ERROR:
+		if (!unlocked) {
+			avb_fatal("Verification Error in Locked State!\n");
+			break;
+		}
+		/*We are in unlocked state
+		* Set warning and wait for user interaction;
+		*/
+		avb_printv("OS was not verified! Press any key to halt booting!..\n", NULL);
+		while ((boot_delay > 0) && (!abort)) {
+			--boot_delay;
+			/* delay 1000 ms */
+			ts = get_timer(0);
+			do {
+				if (tstc()) {	/* we got a key press	*/
+					abort  = 1; /* don't auto boot	*/
+					boot_delay = 0;	/* no more delay	*/
+					(void) getc();	/* consume input	*/
+					break;
+				}
+				udelay(10000);
+			} while (!abort && get_timer(ts) < 1000);
+			printf("\b\b\b%2d ", boot_delay);
+		}
+		if (abort) {
+			avb_fatal("Booting halted by user request\n");
+			break;
+		}
+		/*Fall Through*/
+	case AVB_AB_FLOW_RESULT_OK:
+		avb_printv("slot_suffix:    ", slot_data->ab_suffix, "\n", NULL);
+		avb_printv("cmdline:        ", slot_data->cmdline, "\n", NULL);
+		avb_printv(
+		"release string: ",
+		(const char *)((((AvbVBMetaImageHeader *)
+		(slot_data->vbmeta_images[0]
+		.vbmeta_data)))->release_string),
+		"\n",
+		NULL);
+		cmdline = prepare_bootcmd_compat(ops, boot_device,
+								ab_result, unlocked,
+								slot_data,
+								LOAD_AVB_ARGS);
+
+		if (!cmdline) {
+			avb_fatal("Error while setting cmd line\n");
+			break;
+		}
+
+		if (!avb_boot_part)
+			*argv = hex_to_str((u8 *)&slot_data->loaded_partitions->data, sizeof(ulong));
+
+		AvbPartitionData *avb_part = slot_data->loaded_partitions;
+
+		for(int i = 0; i < slot_data->num_loaded_partitions; i++, avb_part++)
+		{
+			if (!avb_boot_part &&
+			    !strncmp(avb_part->partition_name, "boot", 4)) {
+					avb_boot_part = avb_part;
+			} else if (strncmp(avb_part->partition_name, "dtb", 3) == 0 &&
+				strlen(avb_part->partition_name) == 3) {
+				avb_dtb_part = avb_part;
+			} else if (strncmp(avb_part->partition_name, "dtbo", 4) == 0) {
+				avb_dtbo_part = avb_part;
+			}
+		}
+
+		if (avb_boot_part == NULL || avb_dtb_part == NULL || avb_dtbo_part == NULL) {
+			if (avb_boot_part == NULL) {
+				avb_fatal("Boot partition is not found\n");
+			}
+			if (avb_dtb_part == NULL) {
+				avb_fatal("dtb partition is not found\n");
+			}
+			if (avb_dtbo_part == NULL) {
+				avb_fatal("dtbo partition is not found\n");
+			}
+		} else {
+			return do_boot_android_img_from_ram((ulong)avb_boot_part->data,
+							(ulong)avb_dtb_part->data,
+							(ulong)avb_dtbo_part->data);
+		}
+
+	case AVB_AB_FLOW_RESULT_ERROR_OOM:
+		avb_fatal("OOM error while doing A/B select flow.\n");
+		break;
+	case AVB_AB_FLOW_RESULT_ERROR_IO:
+		avb_fatal("I/O error while doing A/B select flow.\n");
+		break;
+	case AVB_AB_FLOW_RESULT_ERROR_NO_BOOTABLE_SLOTS:
+		avb_fatal("No bootable slots - enter repair mode\n");
+		break;
+	case AVB_AB_FLOW_RESULT_ERROR_INVALID_ARGUMENT:
+		avb_fatal("Invalid Argument error while doing A/B select flow.\n");
+		break;
+	}
+	avb_ops_free(ops);
+	return 0;
+}
+
+int do_boot_avb(int device, char **argv)
+{
+	return avb_main(device, argv);
 }
 
 int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
@@ -848,7 +1058,6 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	new_argv[0] = argv[0];
 	argc--; argv++;
 
-	printf("++%s\n", __func__);
 	if (argc < 1) {
 		return CMD_RET_USAGE;
 	}
@@ -857,7 +1066,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		dev = (int) simple_strtoul(argv[0], NULL, 10);
 		argc--; argv++;
 	}
-	printf("dev = %d\n", dev);
+
 	if (argc >= 2) {
 		boot_part = argv[0];
 		if (!strncmp(argv[2], "avb", strlen("avb"))) {
@@ -872,7 +1081,6 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	}
 
 	addr = simple_strtoul(argv[0], NULL, 16);
-	printf("load = %d, load, addr = %p\n", load, addr);
 	if (load) {
 		if (part > PART_ACCESS_MASK) {
 			printf("#part_num shouldn't be larger than %d\n",
@@ -918,8 +1126,10 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	}
 
 	if (avb) {
-		//AVB is not supported at the moment
-		return CMD_RET_FAILURE;
+		ret = do_boot_avb(dev, &new_argv[1]);
+		if (ret == CMD_RET_SUCCESS) {
+			addr = (int) simple_strtoul(new_argv[1], NULL, 16);
+		}
 	} else {
 		/*We have to remove vbmeta node if we boot without avb*/
 		struct andr_img_hdr *hdr = map_sysmem(addr, 0);
@@ -936,11 +1146,9 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		printf("ERROR: Boot Failed!\n");
 		return ret;
 	}
-
 	build_new_args(addr, new_argv);
 	argc = sizeof(new_argv);
 
-	printf("--%s(%s, %s, %s)\n", __func__, new_argv[1], new_argv[2], new_argv[3]);
 	return do_booti(cmdtp, flag, argc, new_argv);
 }
 

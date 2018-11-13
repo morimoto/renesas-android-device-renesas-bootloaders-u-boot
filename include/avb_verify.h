@@ -33,6 +33,7 @@ enum avb_boot_state {
 
 struct AvbOpsData {
 	struct AvbOps ops;
+	struct AvbABOps ab_ops;
 	int mmc_dev;
 	enum avb_boot_state boot_state;
 };
