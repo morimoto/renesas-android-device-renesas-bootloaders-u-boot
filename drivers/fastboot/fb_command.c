@@ -10,6 +10,7 @@
 #include <fb_nand.h>
 #include <part.h>
 #include <stdlib.h>
+#include <avb_verify.h>
 
 /**
  * image_size - final fastboot image size
@@ -37,6 +38,8 @@ static void reboot_bootloader(char *, char *);
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_FORMAT)
 static void oem_format(char *, char *);
 #endif
+
+static void cb_set_active_boot_slot(char *cmd, char *response);
 
 static const struct {
 	const char *command;
@@ -78,7 +81,7 @@ static const struct {
 	},
 	[FASTBOOT_COMMAND_SET_ACTIVE] =  {
 		.command = "set_active",
-		.dispatch = okay
+		.dispatch = cb_set_active_boot_slot,
 	},
 	[FASTBOOT_COMMAND_FLASHING] = {
 		.command = "flashing",
@@ -97,6 +100,42 @@ static const struct {
 	},
 #endif
 };
+
+static void cb_set_active_boot_slot(char *cmd, char *response)
+{
+	char *val = cmd;
+	unsigned int slot;
+	int ret;
+
+	printf("++%s(%s, %s)\n", __func__, cmd, val);
+	strsep(&val, ":");
+
+	if (!val) {
+		pr_err("missing slot suffix");
+		fastboot_fail("missing slot suffix", response);
+		return;
+	}
+	if (!strncmp(val, "_a", 2) ) {
+		slot = 0;
+	} else if (!strncmp(val, "_b", 2) ) {
+		slot = 1;
+	} else {
+		pr_err("wrong slot suffix");
+		fastboot_fail("wrong slot suffix", response);
+		printf("--%s(-1)\n", __func__);
+		return;
+	}
+	ret = avb_set_active_slot(slot);
+	if (!ret) {
+		printf("Set current boot slot: '%s'\n", val);
+		fastboot_okay(NULL, response);
+		printf("--%s\n", __func__);
+		return;
+	}
+	printf("--%s(-2)\n", __func__);
+	fastboot_fail("avb operation error", response);
+}
+
 
 /**
  * fastboot_handle_command - Handle fastboot command

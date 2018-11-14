@@ -337,6 +337,7 @@ static void fb_handle_bootloader_flashing(void *download_buffer,
 		((download_bytes >> 9) + 1) : (download_bytes >> 9);
 	uint32_t block_count = 0;
 	struct blk_desc *dev_desc;
+	int ret;
 
 	if (write_blocks > BOOTLOADER_BLK_SIZE) {
 		pr_err("too large for partition: 'bootloader%s'\n", slot_suffix);
@@ -353,7 +354,12 @@ static void fb_handle_bootloader_flashing(void *download_buffer,
 		return;
 	}
 
-	mmc_switch_part(mmc, hw_part);
+	ret = mmc_switch_part(mmc, hw_part);
+	if (ret) {
+		pr_err("switching to partition %d failed!\n", hw_part);
+		fastboot_fail("failed switching to partition", response);
+		return;
+	}
 	block_count = blk_dwrite(dev_desc, /* The begin of hw partition */0,
 		write_blocks, download_buffer);
 
@@ -370,8 +376,12 @@ static void fb_handle_bootloader_flashing(void *download_buffer,
 	 * bl2 will not change the slot so we need to reset avb retry counter.
 	 */
 	fastboot_set_active_slot(avb_active_slot);
-
-	mmc_switch_part(mmc, MMC_DEFAULT_PARTITION);
+	ret = mmc_switch_part(mmc, MMC_DEFAULT_PARTITION);
+	if (ret) {
+		pr_err("switching to partition %d failed!\n", MMC_DEFAULT_PARTITION);
+		fastboot_fail("failed switching to partition", response);
+		return;
+	}
 	printf("........ wrote %u bytes to 'bootloader%s'\n", block_count * MMC_MAX_BLOCK_LEN,
 		slot_suffix);
 	fastboot_okay(NULL, response);

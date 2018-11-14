@@ -783,27 +783,143 @@ void avb_ops_free(AvbOps *ops)
 		avb_free(ops_data);
 }
 
-/*Temporary stubs for Libavb*/
+int avb_get_slot_index(void)
+{
+	int ret;
+	AvbOps *avb_ops;
+	AvbABData ab_data;
+	size_t bootable_slot;
+
+	avb_ops = avb_ops_alloc(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!avb_ops) {
+		pr_err("Libavb initialization error\n");
+		return -1;
+	}
+
+	ret = avb_ops->ab_ops->read_ab_metadata(avb_ops->ab_ops, &ab_data);
+	if (ret == AVB_IO_RESULT_OK) {
+		ret = avb_get_bootable_slot(&ab_data, &bootable_slot);
+		if (ret == AVB_IO_RESULT_OK) {
+			avb_ops_free(avb_ops);
+			printf("Current boot slot: '%lu'\n", bootable_slot);
+			return bootable_slot;
+		}
+	}
+	bootable_slot = 0;
+	printf("No bootable slots found. Setting default : '%lu'\n", bootable_slot);
+	ret = avb_ab_mark_slot_active(avb_ops->ab_ops, bootable_slot);
+	avb_ops_free(avb_ops);
+	return bootable_slot;
+}
+
+
 int fastboot_get_slot_index(void)
 {
+	return avb_get_slot_index();
+}
+
+int avb_load_metadata(AvbOps *ops, AvbABData *ab_data)
+{
+	AvbIOResult io_ret;
+	AvbOps *avb_ops;
+
+	if (!ops) {
+		avb_ops = avb_ops_alloc(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	} else {
+		avb_ops = ops;
+	}
+	if (!avb_ops) {
+		pr_err("Libavb initialization error\n");
+		return -1;
+	}
+
+	io_ret = avb_ab_get_metadata(avb_ops->ab_ops, ab_data);
+	if (ops != avb_ops)
+		avb_free(avb_ops);
+
+	if (io_ret != AVB_IO_RESULT_OK)
+		return -1;
+
 	return 0;
 }
 
+
 int avb_is_slot_successful(unsigned int slot, bool *successful)
 {
-	*successful = true;
+	AvbABData ab_data;
+	AvbABSlotData* slot_data;
+	int ret;
+
+	if ((slot >= 2) || (!successful))
+		return -1;
+
+	ret = avb_load_metadata(NULL, &ab_data);
+	if (ret)
+		return -1;
+
+	slot_data = &ab_data.slots[slot];
+	*successful = (bool) slot_data->successful_boot;
 	return 0;
 }
 
 int avb_is_slot_bootable(unsigned int slot, bool *bootable)
 {
-	*bootable = true;
+	AvbABData ab_data;
+	int ret;
+
+	if ((slot >= 2) || (!bootable))
+		return -1;
+
+	ret = avb_load_metadata(NULL, &ab_data);
+	if (ret)
+		return -1;
+
+	if (slot_is_bootable(&ab_data.slots[slot])) {
+		*bootable = true;
+	} else {
+		*bootable = false;
+	}
+	return 0;
+}
+
+int avb_get_slot_retry(unsigned int slot)
+{
+	AvbABData ab_data;
+	AvbABSlotData* slot_data;
+	int ret;
+
+	if (slot >= 2)
+		return -1;
+
+	ret = avb_load_metadata(NULL, &ab_data);
+	if (ret)
+		return -1;
+
+	slot_data = &ab_data.slots[slot];
+
+	return slot_data->tries_remaining;
+}
+
+int avb_set_active_slot(unsigned int slot)
+{
+	AvbOps *avb_ops;
+	int ret;
+
+	avb_ops = avb_ops_alloc(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	if (!avb_ops) {
+		return -1;
+	}
+	ret = avb_ab_mark_slot_active(avb_ops->ab_ops, slot);
+	avb_ops_free(avb_ops);
+	if (ret != AVB_IO_RESULT_OK)
+		return -1;
+
 	return 0;
 }
 
 int fastboot_set_active_slot(int slot_idx)
 {
-	return 0;
+	return avb_set_active_slot(slot_idx);
 }
 
 const char *cb_get_slot_char(void)

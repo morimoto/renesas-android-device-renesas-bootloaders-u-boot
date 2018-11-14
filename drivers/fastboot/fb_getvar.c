@@ -119,8 +119,9 @@ static void getvar_product(char *var_parameter, char *response)
 
 static void getvar_current_slot(char *var_parameter, char *response)
 {
-	/* A/B not implemented, for now always return _a */
-	fastboot_okay("_a", response);
+	const char *slot = cb_get_slot_char();
+
+	fastboot_okay(slot, response);
 }
 
 static void getvar_slot_suffixes(char *var_parameter, char *response)
