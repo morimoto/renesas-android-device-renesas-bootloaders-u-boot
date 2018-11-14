@@ -117,4 +117,6 @@ char *prepare_bootcmd_compat(AvbOps *ops,
 		prepare_bootcmd_compat(NULL, dev, 0, false, NULL, LOAD_OLD_ARGS)
 
 
+int avb_set_active_slot(unsigned int slot);
+
 #endif /* _AVB_VERIFY_H */
