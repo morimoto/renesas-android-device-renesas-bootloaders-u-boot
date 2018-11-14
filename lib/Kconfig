@@ -199,12 +199,31 @@ config LIBAVB
 	  device. Introduces such features as boot chain of trust, rollback
 	  protection etc.
 
+if LIBAVB
+
+config LIBAVB_BUF_ADDR
+	hex "Define LIBAVB buffer address"
+	default 0x4B000000 if RCAR_GEN3
+	help
+	  The libavb requires a large memory buffer for read/write
+	  operations. Define this to the free RAM address.
+
+config LIBAVB_BUF_SIZE
+	hex "Define FASTBOOT buffer size"
+	default 0x1000000 if RCAR_GEN3
+	help
+	  The libavb protocol requires a large memory buffer for
+	  read/write operations. This buffer should be as large as the biggest
+	  verified raw partition(boot, dtb, dtbo) Define this to the size
+	  available RAM.
+
 config LIBAVB_AB
 	bool "Android AB slots support based on Verified Boot 2.0"
 	depends on LIBAVB
 	default n
 	help
 	  This enables support of AB slots which can be used for AB updates.
+endif #LIBAVB
 
 endmenu
 

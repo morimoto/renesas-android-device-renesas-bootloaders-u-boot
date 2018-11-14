@@ -76,12 +76,12 @@ static inline uint64_t calc_offset(struct mmc_part *part, int64_t offset)
 
 static inline size_t get_sector_buf_size(void)
 {
-	return (size_t)CONFIG_FASTBOOT_BUF_SIZE;
+	return (size_t)CONFIG_LIBAVB_BUF_SIZE;
 }
 
 static inline void *get_sector_buf(void)
 {
-	return (void *)CONFIG_FASTBOOT_BUF_ADDR;
+	return (void *)CONFIG_LIBAVB_BUF_ADDR;
 }
 
 static inline bool is_buf_unaligned(void *buffer)
