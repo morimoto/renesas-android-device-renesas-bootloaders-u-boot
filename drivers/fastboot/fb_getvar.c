@@ -176,8 +176,9 @@ static void getvar_platform(char *var_parameter, char *response)
 
 static void getvar_current_slot(char *var_parameter, char *response)
 {
-	/* A/B not implemented, for now always return "a" */
-	fastboot_okay("a", response);
+	const char *slot = cb_get_slot_char();
+
+	fastboot_okay(slot, response);
 }
 
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH)
