@@ -85,6 +85,17 @@
 #define CONFIG_SH_SCIF_CLK_FREQ		65000000
 #endif
 
+#define RCAR_GENERIC_PLAT_ID		0x00779000
+
+#define CPU_ID_R8A7795				0x4F
+#define CPU_ID_R8A7796				0x52
+#define CPU_ID_R8A77965				0x55
+#define CPU_ID_R8A77990				0x57
+#define CPU_ID_R8A77995				0x58
+
+#define I2C_POWERIC_EEPROM_OFFSET	0x70
+#define I2C_POWERIC_EEPROM_ADDR		0x50
+
 /*
  * This define is specify the bootloader partition size
  * in mmcblk0boot0/1.
