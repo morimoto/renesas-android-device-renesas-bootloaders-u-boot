@@ -126,6 +126,9 @@ char *prepare_bootcmd_compat(AvbOps *ops,
 
 
 int avb_set_active_slot(unsigned int slot);
+int avb_get_slot_retry(unsigned int slot);
+int avb_is_slot_bootable(unsigned int slot, bool *bootable);
+int avb_is_slot_successful(unsigned int slot, bool *successful);
 
 /*This is generic functions of Read/Write from/to partition that doesn't containg
 *libvb related parameters

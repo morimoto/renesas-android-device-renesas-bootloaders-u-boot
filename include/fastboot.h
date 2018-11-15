@@ -204,5 +204,7 @@ void fastboot_data_complete(char *response);
 
 void fastboot_set_reset_completion(void);
 
+void fastboot_send_response(char *fmt, ...);
+void fastboot_cb_getvar(const char *var, char *response);
 
 #endif /* _FASTBOOT_H_ */

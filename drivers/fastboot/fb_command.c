@@ -194,7 +194,12 @@ static void okay(char *cmd_parameter, char *response)
 static void getvar(char *cmd_parameter, char *response)
 {
 	strsep(&cmd_parameter, ":");
+#if defined(CONFIG_RCAR_GEN3)
+	fastboot_cb_getvar(cmd_parameter, response);
+#else
 	fastboot_getvar(cmd_parameter, response);
+#endif
+
 }
 
 /**
