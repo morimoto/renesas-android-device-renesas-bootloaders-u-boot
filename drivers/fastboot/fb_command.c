@@ -35,6 +35,7 @@ static void flash(char *, char *);
 static void erase(char *, char *);
 #endif
 static void reboot_bootloader(char *, char *);
+static void reboot(char *, char *);
 #if CONFIG_IS_ENABLED(FASTBOOT_CMD_OEM_FORMAT)
 static void oem_format(char *, char *);
 #endif
@@ -73,7 +74,7 @@ static const struct {
 	},
 	[FASTBOOT_COMMAND_REBOOT] =  {
 		.command = "reboot",
-		.dispatch = okay
+		.dispatch = reboot
 	},
 	[FASTBOOT_COMMAND_REBOOT_BOOTLOADER] =  {
 		.command = "reboot-bootloader",
@@ -385,3 +386,15 @@ static void oem_format(char *cmd_parameter, char *response)
 	}
 }
 #endif
+
+static void reboot(char *cmd, char *response)
+{
+	if (!strcmp("reboot-bootloader", cmd)) {
+		if (fastboot_set_reboot_flag()) {
+			fastboot_fail("Cannot set reboot flag", response);
+			return;
+		}
+	}
+	fastboot_set_reset_completion();
+	fastboot_okay(NULL, response);
+}
