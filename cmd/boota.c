@@ -346,6 +346,33 @@ static void set_board_id_args(ulong plat_id) {
 	free(newbootargs);
 }
 
+static void set_cpu_revision_args(void) {
+	char *bootargs = env_get("bootargs");
+	int len = 0;
+	u32 rev_integer = rmobile_get_cpu_rev_integer();
+	u32 rev_fraction = rmobile_get_cpu_rev_fraction();
+	u32 cpu_type = rmobile_get_cpu_type();
+	if (cpu_type == CPU_ID_R8A7796) { /* R8A7796 */
+		if ((rev_integer == 2) && (rev_fraction == 0)) {
+			/* v2.0 force to v1.1 */
+			rev_integer = rev_fraction = 1;
+		}
+	}
+	if (bootargs)
+		len += strlen(bootargs);
+	len += 27; /* for 'androidboot.revision=x.x '*/
+	char *newbootargs = malloc(len);
+	if (newbootargs) {
+		snprintf(newbootargs, len, "androidboot.revision=%d.%d %s",
+				rev_integer, rev_fraction, bootargs);
+		env_set("bootargs", newbootargs);
+	} else {
+		puts("Error: malloc in set_cpu_revision_args failed!\n");
+		return;
+	}
+	free(newbootargs);
+}
+
 static char * assemble_dtbo_idx_string(int indx[], size_t size)
 {
 	const char * dtbo_str = "androidboot.dtbo_idx=";
@@ -599,6 +626,7 @@ static int load_dt_with_overlays(struct fdt_header *load_addr,
 	add_dtbo_index(dmbo_indx, dmbo_count);
 
 	set_board_id_args(plat_id);
+	set_cpu_revision_args();
 
 	/* Base device tree should be loaded in defined address */
 	load_dt_at_addr(load_addr, base_dt_entry, dt_tbl);
