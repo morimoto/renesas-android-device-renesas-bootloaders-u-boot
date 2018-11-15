@@ -11,7 +11,11 @@
 #include <cli.h>
 #include <console.h>
 #include <version.h>
+#include <fastboot.h>
 
+#if defined(CONFIG_CMD_FASTBOOT)
+extern int do_fastboot(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[]);
+#endif
 /*
  * Board-specific Platform code can reimplement show_boot_progress () if needed
  */
@@ -37,10 +41,49 @@ static void run_preboot_environment_command(void)
 #endif /* CONFIG_PREBOOT */
 }
 
+/* Read command from BCB */
+#if defined(CONFIG_ANDROID_BOOT_IMAGE) && defined(CONFIG_CMD_FASTBOOT)
+static void load_android_bootloader_params(void)
+{
+	struct bootloader_message bcb;
+	char * bootmode = "android";
+
+	if(get_bootloader_message(&bcb)) {
+		printf("Failed to read Android bootloader record.\n");
+		return;
+	}
+
+	if (strstr(bcb.command, "bootloader") != NULL) {
+		bootmode = "fastboot";
+
+		if ((bcb.status[0] != 0) && (bcb.status[0] != 255)) {
+			printf("Boot status: %.*s\n", (int)sizeof(bcb.status), bcb.status);
+			if (strncmp("OKAY", bcb.status, strlen("OKAY")))
+				printf("ERROR! Last operation has failed!\n");
+		}
+
+		/* Clear only recovery part of bootloader message */
+		memset(&bcb.command, 0, sizeof(bcb.command));
+		memset(&bcb.status, 0, sizeof(bcb.status));
+		memset(&bcb.recovery, 0, sizeof(bcb.recovery));
+
+		if(set_bootloader_message(&bcb)) {
+			printf("Error writing bcb!\n");
+		}
+	} else if (strstr(bcb.command, "recovery") != NULL) {
+		bootmode = "recovery";
+	}
+
+	printf("Setting bootmode '%s'\n", bootmode);
+	env_set("bootmode", bootmode);
+}
+#endif
+
 /* We come here after U-Boot is initialised and ready to process commands */
 void main_loop(void)
 {
 	const char *s;
+	char *const fastboot_usb[] = {"usb", "24"};
 
 	bootstage_mark_name(BOOTSTAGE_ID_MAIN_LOOP, "main_loop");
 
@@ -51,6 +94,14 @@ void main_loop(void)
 	cli_init();
 	/* Set proper platform in environment */
 	rcar_preset_env();
+
+#if defined(CONFIG_ANDROID_BOOT_IMAGE) && defined(CONFIG_CMD_FASTBOOT)
+	load_android_bootloader_params();
+
+	if ((s = env_get("bootmode")) != NULL && !strcmp(s, "fastboot")) {
+		do_fastboot(NULL, 0, 2, fastboot_usb);
+	}
+#endif
 
 	run_preboot_environment_command();
 
