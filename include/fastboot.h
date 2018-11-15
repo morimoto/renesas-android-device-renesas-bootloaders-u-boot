@@ -12,6 +12,9 @@
 #ifndef _FASTBOOT_H_
 #define _FASTBOOT_H_
 
+/* For struct bootloader_message */
+#include <android/bootloader.h>
+
 #define FASTBOOT_VERSION	"0.4"
 
 /* The 64 defined bytes plus \0 */
