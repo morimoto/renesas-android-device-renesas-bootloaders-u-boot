@@ -21,6 +21,7 @@
 #include <malloc.h>
 #include <i2c.h>
 #include <dm/uclass.h>
+#include <configs/rcar-gen3-common.h>
 
 /*
  * Android Image booting support on R-Car Gen3 boards
@@ -80,15 +81,6 @@ static void *load_dt_table_from_part(struct blk_desc *dev_desc, const char *dtbo
  *   0x0A Salvator-M
  *   0x0B StarterKit Premier
  */
-
-#define RCAR_GENERIC_PLAT_ID 0x00779000
-
-#define CPU_ID_R8A7795	0x4F
-#define CPU_ID_R8A7796	0x52
-#define CPU_ID_R8A77965	0x55
-#define CPU_ID_R8A77990	0x57
-#define CPU_ID_R8A77995	0x58
-#define I2C_POWERIC_EEPROM_ADDR 0x50
 static ulong get_current_plat_id(void)
 {
 	ulong cpu_type = rmobile_get_cpu_type();
