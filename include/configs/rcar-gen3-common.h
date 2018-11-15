@@ -73,6 +73,17 @@
 	"tftp 0x48000000 Image-"CONFIG_DEFAULT_FDT_FILE"; " \
 	"booti 0x48080000 - 0x48000000"
 
+#define RCAR_GENERIC_PLAT_ID		0x00779000
+
+#define CPU_ID_R8A7795				0x4F
+#define CPU_ID_R8A7796				0x52
+#define CPU_ID_R8A77965				0x55
+#define CPU_ID_R8A77990				0x57
+#define CPU_ID_R8A77995				0x58
+
+#define I2C_POWERIC_EEPROM_OFFSET	0x70
+#define I2C_POWERIC_EEPROM_ADDR		0x50
+
 /*
  * This define is specify the bootloader partition size
  * in mmcblk0boot0/1.
