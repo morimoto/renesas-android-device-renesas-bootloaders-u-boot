@@ -26,6 +26,7 @@
 #include <linux/compiler.h>
 #include <bootm.h>
 #include <vxworks.h>
+#include <malloc.h>
 
 #ifdef CONFIG_ARMV7_NONSEC
 #include <asm/armv7.h>
@@ -316,6 +317,27 @@ static void switch_to_el1(void)
 #endif
 #endif
 
+static void set_boottime_args(void) {
+	ulong boot_time;
+	char *bootargs = env_get("bootargs");
+	int len = 0;
+	if (bootargs)
+		len += strlen(bootargs);
+	len += 33; /* for 'androidboot.boottime=xxxx.xxxx '*/
+	char *newbootargs = malloc(len);
+	if (newbootargs) {
+		/* Add bootloaders boot time to the Kernel command line */
+		boot_time = get_timer(0);
+		snprintf(newbootargs, len, "androidboot.boottime=%lu.%lu %s",
+				boot_time / 1000, boot_time % 1000, bootargs);
+		env_set("bootargs", newbootargs);
+	} else {
+		puts("Error: malloc in set_boottime_args failed!\n");
+		return;
+	}
+	free(newbootargs);
+}
+
 /* Subcommand: GO */
 static void boot_jump_linux(bootm_headers_t *images, int flag)
 {
@@ -341,6 +363,8 @@ static void boot_jump_linux(bootm_headers_t *images, int flag)
 
 		update_os_arch_secondary_cores(images->os.arch);
 
+		/* Pass boot-time parameter to Android */
+		set_boottime_args();
 #ifdef CONFIG_ARMV8_SWITCH_TO_EL1
 		armv8_switch_to_el2((u64)images->ft_addr, 0, 0, 0,
 				    (u64)switch_to_el1, ES_TO_AARCH64);
