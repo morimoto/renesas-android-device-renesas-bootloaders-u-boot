@@ -38,24 +38,6 @@ DECLARE_GLOBAL_DATA_PTR;
 #define FB_ERR_GENERIC 	(-1)
 #define FB_ERR_CRC		(-2)
 
-static int64_t get_part_size(int dev, char *part_name)
-{
-	struct blk_desc *dev_desc;
-	disk_partition_t part_info;
-	int ret;
-	int64_t size = -1;
-
-	dev_desc = blk_get_dev("mmc", dev);
-
-
-	ret = part_get_info_by_name(dev_desc, part_name, &part_info);
-	if (ret >= 0)
-		size = part_info.size*part_info.blksz;
-
-	return size;
-}
-
-
 int fastboot_load_control_block(struct fastboot_control_block *ctrlb)
 {
 	int dev = CONFIG_FASTBOOT_FLASH_MMC_DEV;
