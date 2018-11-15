@@ -178,6 +178,17 @@ int init_func_vid(void);
 int checkboard(void);
 int show_board_info(void);
 
+#if defined(CONFIG_FASTBOOT_BY_SW)
+#include <asm/gpio.h>
+struct confirm_pin_info {
+	struct gpio_desc gpio;
+	const char *name;
+};
+
+struct confirm_pin_info *gpio_get_user_confirm_pin(void);
+#endif /*CONFIG_FASTBOOT_BY_SW*/
+
+
 #endif	/* __ASSEMBLY__ */
 /* Put only stuff here that the assembler can digest */
 

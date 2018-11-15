@@ -12,6 +12,7 @@
 #include <console.h>
 #include <version.h>
 #include <fastboot.h>
+#include <asm/gpio.h>
 
 #if defined(CONFIG_CMD_FASTBOOT)
 extern int do_fastboot(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[]);
@@ -48,11 +49,26 @@ static void load_android_bootloader_params(void)
 	struct bootloader_message bcb;
 	char * bootmode = "android";
 
+#if defined(CONFIG_FASTBOOT_BY_SW)
+struct confirm_pin_info *pin_info = gpio_get_user_confirm_pin();
+if (!pin_info) {
+	printf("Failed to get user confirm pin information\n");
+	return;
+}
+#endif /*CONFIG_FASTBOOT_BY_SW*/
+
 	if(get_bootloader_message(&bcb)) {
 		printf("Failed to read Android bootloader record.\n");
 		return;
 	}
 
+#if defined(CONFIG_FASTBOOT_BY_SW)
+	if (dm_gpio_get_value(&pin_info->gpio)) {
+		bootmode = "fastboot";
+		printf("Entering to fastboot mode due pressed %s\n",
+				pin_info->name);
+	} else
+#endif /* CONFIG_FASTBOOT_BY_SW */
 	if (strstr(bcb.command, "bootloader") != NULL) {
 		bootmode = "fastboot";
 

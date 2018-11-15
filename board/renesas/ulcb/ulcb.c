@@ -59,8 +59,42 @@ int board_early_init_f(void)
 #define HSUSB_REG_UGCTRL2_USB0SEL	0x30
 #define HSUSB_REG_UGCTRL2_USB0SEL_EHCI	0x10
 
+#if defined(CONFIG_FASTBOOT_BY_SW)
+struct confirm_pin_info *gpio_get_user_confirm_pin(void)
+{
+	static struct confirm_pin_info pin_info = {
+		.name = NULL
+	};
+	int node;
+
+	if (pin_info.name)
+		return &pin_info;
+
+	node = fdt_node_offset_by_compatible(gd->fdt_blob, 0, "fastboot-by-sw");
+	if (node < 0)
+		return NULL;
+
+	gpio_request_by_name_nodev(offset_to_ofnode(node), "gpios", 0,
+				   &pin_info.gpio, GPIOD_IS_IN | GPIOD_ACTIVE_LOW);
+
+	if (!dm_gpio_is_valid(&pin_info.gpio)) {
+		return NULL;
+	}
+
+	pin_info.name = "SW3";
+	return &pin_info;
+}
+#endif /*CONFIG_FASTBOOT_BY_SW*/
+
 int board_init(void)
 {
+#if defined(CONFIG_FASTBOOT_BY_SW)
+	struct confirm_pin_info *pin_info =
+		gpio_get_user_confirm_pin();
+	if (!pin_info)
+		printf("Failed to get user confirm pin information\n");
+#endif /*CONFIG_FASTBOOT_BY_SW*/
+
 	/* adress of boot parameters */
 	gd->bd->bi_boot_params = CONFIG_SYS_TEXT_BASE + 0x50000;
 
