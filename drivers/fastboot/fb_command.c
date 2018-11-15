@@ -108,7 +108,6 @@ static void cb_set_active_boot_slot(char *cmd, char *response)
 	unsigned int slot;
 	int ret;
 
-	printf("++%s(%s, %s)\n", __func__, cmd, val);
 	strsep(&val, ":");
 
 	if (!val) {
@@ -116,24 +115,21 @@ static void cb_set_active_boot_slot(char *cmd, char *response)
 		fastboot_fail("missing slot suffix", response);
 		return;
 	}
-	if (!strncmp(val, "_a", 2) ) {
+	if (!strncmp(val, "a", 1) ) {
 		slot = 0;
-	} else if (!strncmp(val, "_b", 2) ) {
+	} else if (!strncmp(val, "b", 1) ) {
 		slot = 1;
 	} else {
 		pr_err("wrong slot suffix");
 		fastboot_fail("wrong slot suffix", response);
-		printf("--%s(-1)\n", __func__);
 		return;
 	}
 	ret = avb_set_active_slot(slot);
 	if (!ret) {
 		printf("Set current boot slot: '%s'\n", val);
 		fastboot_okay(NULL, response);
-		printf("--%s\n", __func__);
 		return;
 	}
-	printf("--%s(-2)\n", __func__);
 	fastboot_fail("avb operation error", response);
 }
 
