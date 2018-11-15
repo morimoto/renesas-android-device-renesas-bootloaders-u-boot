@@ -357,6 +357,12 @@
 		#clock-cells = <0>;
 		clock-frequency = <25000000>;
 	};
+
+	fastboot-by-sw {
+		compatible = "fastboot-by-sw";
+		gpios = <&gpio6 13 GPIO_ACTIVE_LOW>;
+		label = "SW22";
+	};
 };
 
 &a57_0 {

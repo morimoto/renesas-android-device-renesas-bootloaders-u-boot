@@ -15,6 +15,7 @@
 #include <avb_verify.h>
 #include <mapmem.h>
 #include <android/bootloader.h>
+#include <asm/gpio.h>
 
 
 #define MMC_PERSISTENT_PART "pst"
@@ -265,8 +266,6 @@ static long wait_pooling_to(unsigned long pooling_ms)
 #define FB_POOLING_TO 100
 #define SEC_TO_MSEC(x) (1000*x)
 #define MSEC_TO_SEC(x) (x/1000)
-
-extern int gpio_get_value(unsigned gpio);
 #endif /* CONFIG_FASTBOOT_BY_SW */
 
 static bool is_user_confirmed(void)
@@ -275,9 +274,8 @@ static bool is_user_confirmed(void)
 #if defined(CONFIG_FASTBOOT_BY_SW)
 	long fb_delay = -1;
 	char *confirm_to = NULL;
-	struct confirm_pin_info *pin_info =
-				gpio_get_user_confirm_pin();
-#endif
+	struct confirm_pin_info *pin_info = gpio_get_user_confirm_pin();
+#endif /*CONFIG_FASTBOOT_BY_SW*/
 
 	printf("WARNING: Unlocking allows flashing of unofficial images!\n");
 	printf("WARNING: This  may damage your device and void warranty!\n");
@@ -307,14 +305,14 @@ static bool is_user_confirmed(void)
 		fb_delay = SEC_TO_MSEC(FB_USER_TO);
 
 	while (pin_info && fb_delay > 0) {
-		if (!gpio_get_value(pin_info->pin_num)) {
+		if (dm_gpio_get_value(&pin_info->gpio)) {
 			printf("Unlocking confirmed by user, continue\n");
 			return true;
 		}
 		fb_delay -= wait_pooling_to(FB_POOLING_TO);
 		printf("\b\b\b%2d ", (int) MSEC_TO_SEC(fb_delay));
 	}
-#endif
+#endif /*CONFIG_FASTBOOT_BY_SW*/
 	return false;
 }
 
