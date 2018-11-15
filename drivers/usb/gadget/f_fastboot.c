@@ -327,11 +327,11 @@ static int fastboot_tx_write(const char *buffer, unsigned int buffer_size)
 	memcpy(in_req->buf, buffer, buffer_size);
 	in_req->length = buffer_size;
 
-	usb_ep_dequeue(fastboot_func->in_ep, in_req);
-
 	ret = usb_ep_queue(fastboot_func->in_ep, in_req, 0);
 	if (ret)
 		printf("Error %d on queue\n", ret);
+
+	udelay(1000);
 	return 0;
 }
 
