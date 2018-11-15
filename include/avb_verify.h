@@ -64,9 +64,17 @@ char *append_cmd_line(char *cmdline_orig, char *cmdline_new);
  * I/O helper inline functions
  * ============================================================================
  */
+static inline uint64_t calc_partition_size(struct mmc_part *part)
+{
+	if (!part)
+		return 0;
+
+	return (uint64_t) part->info.size * part->info.blksz;
+}
+
 static inline uint64_t calc_offset(struct mmc_part *part, int64_t offset)
 {
-	u64 part_size = part->info.size * part->info.blksz;
+	uint64_t part_size = calc_partition_size(part);
 
 	if (offset < 0)
 		return part_size + offset;
@@ -118,5 +126,23 @@ char *prepare_bootcmd_compat(AvbOps *ops,
 
 
 int avb_set_active_slot(unsigned int slot);
+
+/*This is generic functions of Read/Write from/to partition that doesn't containg
+*libvb related parameters
+*/
+int read_from_part(int mmc_dev,
+				const char *partition,
+				int64_t offset,
+				size_t num_bytes,
+				void *buffer,
+				size_t *out_num_read);
+
+int write_to_part(int mmc_dev,
+				const char *partition,
+				int64_t offset,
+				size_t num_bytes,
+				const void *buffer);
+
+uint64_t get_part_size(int mmc_dev, const char *partition);
 
 #endif /* _AVB_VERIFY_H */

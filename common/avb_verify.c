@@ -1063,3 +1063,69 @@ char *prepare_bootcmd_compat(AvbOps *ops, int boot_device,
 
 	return cmdline;
 }
+
+int read_from_part(int mmc_dev,
+				const char *partition,
+				int64_t offset,
+				size_t num_bytes,
+				void *buffer,
+				size_t *out_num_read)
+{
+	AvbOps *avb_ops;
+	int ret;
+
+	if (!buffer || !out_num_read || !partition)
+		return -1;
+
+	avb_ops = avb_ops_alloc(mmc_dev);
+	if (!avb_ops) {
+		printf("Libavb initialization error\n");
+		return -1;
+	}
+
+	ret = avb_ops->read_from_partition(avb_ops, partition, offset, num_bytes,
+			buffer, out_num_read);
+
+	avb_ops_free(avb_ops);
+	return ret == AVB_IO_RESULT_OK ? 0: -1;
+}
+
+int write_to_part(int mmc_dev,
+				const char *partition,
+				int64_t offset,
+				size_t num_bytes,
+				 const void *buffer)
+{
+	AvbOps *avb_ops;
+	int ret;
+
+	if (!buffer || !partition)
+		return -1;
+
+	avb_ops = avb_ops_alloc(mmc_dev);
+	if (!avb_ops) {
+		printf("Libavb initialization error\n");
+		return -1;
+	}
+
+	ret = avb_ops->write_to_partition(avb_ops, partition, offset, num_bytes,
+			buffer);
+
+	avb_ops_free(avb_ops);
+	return ret == AVB_IO_RESULT_OK ? 0: -1;
+}
+
+uint64_t get_part_size(int mmc_dev, const char *partition)
+{
+	AvbOps *avb_ops;
+	struct mmc_part *part;
+
+	avb_ops = avb_ops_alloc(mmc_dev);
+	if (!avb_ops) {
+		printf("Libavb initialization error\n");
+		return -1;
+	}
+
+	part = get_partition(avb_ops, partition);
+	return calc_partition_size(part);
+}
