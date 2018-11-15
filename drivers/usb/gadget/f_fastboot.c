@@ -340,6 +340,19 @@ static int fastboot_tx_write_str(const char *buffer)
 	return fastboot_tx_write(buffer, strlen(buffer));
 }
 
+void fastboot_send_response(char *fmt, ...)
+{
+	int len;
+	char response[FASTBOOT_RESPONSE_LEN];
+	va_list args;
+
+	va_start(args, fmt);
+	len = vsnprintf(response, sizeof(response), fmt, args);
+	va_end(args);
+
+	fastboot_tx_write(response, len);
+}
+
 static void compl_do_reset(struct usb_ep *ep, struct usb_request *req)
 {
 	do_reset(NULL, 0, 0, NULL);
