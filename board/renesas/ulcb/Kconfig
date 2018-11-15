@@ -12,4 +12,12 @@ config SYS_VENDOR
 config SYS_CONFIG_NAME
 	default "ulcb"
 
+config FASTBOOT_BY_SW
+bool "Enter fastboot by SW3"
+	default n
+	depends on R8A7795 || R8A7796X
+	help
+	  Allows to enter at fastboot mode while
+	  holding down SW3 button
+
 endif
