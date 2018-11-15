@@ -320,8 +320,62 @@ static bool is_user_confirmed(void)
 
 bool fastboot_get_unlock_ability(void)
 {
-	return true;
+	int ret;
+	bool unlock = false;
+	static sha256_context ctx256;
+	u8 zero_buf_32[SHA2_BUF_SIZE];
+	u8 sha_buf[SHA2_BUF_SIZE];
+	size_t num_read = 0;
+	u8 *buf = (u8 *)CONFIG_FASTBOOT_BUF_ADDR;
+	uint64_t part_size = get_part_size(CONFIG_FASTBOOT_FLASH_MMC_DEV,
+						MMC_PERSISTENT_PART);
 
+	memset(zero_buf_32, 0, sizeof(zero_buf_32));
+
+	ret = read_from_part(CONFIG_FASTBOOT_FLASH_MMC_DEV,
+					MMC_PERSISTENT_PART,
+					MMC_PERSISTENT_OFFSET,
+					part_size - MMC_PERSISTENT_OFFSET,
+					buf, &num_read);
+
+	if (!ret && num_read) {
+		unlock = (bool) buf[num_read - 1];
+		printf("Unlock ability: %d\n", unlock);
+		if (unlock) {
+			/*Check hash for sanity*/
+			sha256_starts(&ctx256);
+			sha256_update(&ctx256, zero_buf_32, SHA2_BUF_SIZE);
+			sha256_update(&ctx256, buf, num_read);
+			sha256_finish(&ctx256, sha_buf);
+			ret = read_from_part(CONFIG_FASTBOOT_FLASH_MMC_DEV,
+							   MMC_PERSISTENT_PART,
+							   0,
+							   SHA2_BUF_SIZE,
+							   zero_buf_32, &num_read);
+			if (!ret && (num_read == SHA2_BUF_SIZE)) {
+				ret = memcmp(zero_buf_32, sha_buf, SHA2_BUF_SIZE);
+				if (ret) {
+					printf("Partition hash mismatch, skipping unlock\n");
+					printf("calculated hash:\n");
+					for (int i = 0; i < SHA2_BUF_SIZE; i++)
+						printf("%x", sha_buf[i]);
+
+					printf("\r\n");
+					printf("original hash:");
+					for (int i = 0; i < SHA2_BUF_SIZE; i++)
+						printf("%x", zero_buf_32[i]);
+
+					printf("\r\n");
+					unlock = false;
+				}
+			} else {
+				printf("Hash read error, skipping unlock\n");
+				unlock = false;
+			}
+		}
+	}
+
+	return unlock;
 }
 
 void fastboot_cb_flashing(char *cmd, char *response)
@@ -373,7 +427,7 @@ void fastboot_cb_flashing(char *cmd, char *response)
 	} else if (!strcmp(cmd, "get_unlock_ability")) {
 		bool unlock = fastboot_get_unlock_ability();
 
-		fastboot_response("INFO", response, "unlock ability: %d", unlock);
+		fastboot_send_response("INFO unlock ability: %d", unlock);
 		fastboot_okay(NULL, response);
 		return;
 	} else {
