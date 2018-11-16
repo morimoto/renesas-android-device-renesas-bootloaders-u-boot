@@ -72,7 +72,7 @@ static inline uint64_t calc_partition_size(struct mmc_part *part)
 	return (uint64_t) part->info.size * part->info.blksz;
 }
 
-static inline uint64_t calc_offset(struct mmc_part *part, int64_t offset)
+static inline int64_t calc_offset(struct mmc_part *part, int64_t offset)
 {
 	uint64_t part_size = calc_partition_size(part);
 
