@@ -66,140 +66,142 @@ const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS] = {
 
 static int oem_dump_help(char *response)
 {
-    fastboot_response("INFO", response, "  flash <IPL>  - flash specified IPL:");
-    fastboot_response("INFO", response, NULL);
-    fastboot_response("INFO", response, " erase        - erase secure store.");
-    fastboot_response("INFO", response, "  format       - create new GPT partition table on eMMC.");
-    fastboot_response("INFO", response, "  lock_status  - show lock status of the IPL and eMMC.");
-    fastboot_response("INFO", response, "  setenv NAME <VALUE>  - set environment variable.\n");
-    fastboot_response("INFO", response, "  setenv default       - set environment variables to default.\n");
-    fastboot_okay(NULL, response);
-    return 0;
+	fastboot_send_response("INFO  flash <IPL>  - flash specified IPL:");
+	fastboot_send_response("INFO");
+	fastboot_send_response("INFO  erase 	   - erase secure store.");
+	fastboot_send_response("INFO  format	   - create new GPT partition table on eMMC.");
+	fastboot_send_response("INFO  lock_status  - show lock status of the IPL and eMMC.");
+	fastboot_send_response("INFO  setenv NAME <VALUE>  - set environment variable.\n");
+	fastboot_send_response("INFO  setenv default	   - set environment variables to default.\n");
+	fastboot_okay(NULL, response);
+	return 0;
 }
 
 static int oem_format(char *response)
 {
-    struct blk_desc *blkdev = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
-    struct disk_partition *parts;
-    int i, num_parts = ARRAY_SIZE(oem_partition_table);
-    char uuid[64], name[32];
+	struct blk_desc *blkdev = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	struct disk_partition *parts;
+	int i, num_parts = ARRAY_SIZE(oem_partition_table);
+	char uuid[64], name[32];
 
-    if (!blkdev || blkdev->type == DEV_TYPE_UNKNOWN) {
-        fastboot_fail("FAIL eMMC device not found!", response);
-        return -1;
-    }
+	if (!blkdev || blkdev->type == DEV_TYPE_UNKNOWN) {
+		fastboot_fail("FAIL eMMC device not found!", response);
+		return -1;
+	}
 
-    fastboot_response("INFO", response, " eMMC: %s %s %s %zuMiB",
-        blkdev->vendor, blkdev->product, blkdev->revision,
-        (blkdev->lba * blkdev->blksz) / 1024 / 1024);
+	fastboot_send_response("INFO eMMC: %s %s %s %zuMiB",
+		blkdev->vendor, blkdev->product, blkdev->revision,
+		(blkdev->lba * blkdev->blksz) / 1024 / 1024);
 
-    parts = calloc(sizeof(disk_partition_t), num_parts);
-    if (parts == NULL) {
-        printf("%s: Unable to allocate memory for new partition table, %lu bytes",
-            __func__, num_parts * sizeof(disk_partition_t));
-        return -1;
-    }
+	parts = calloc(sizeof(disk_partition_t), num_parts);
+	if (parts == NULL) {
+		printf("%s: Unable to allocate memory for new partition table, %lu bytes",
+			__func__, num_parts * sizeof(disk_partition_t));
+		return -1;
+	}
 
-    /* Set offset for first partition, reserved space 512KiB */
-    parts[0].start = (524288 / blkdev->blksz);
+	/* Set offset for first partition, reserved space 512KiB */
+	parts[0].start = (524288 / blkdev->blksz);
 
-    /* Construct partition table */
-    for (i = 0; i < num_parts; i++)
-    {
-        size_t blks, size = oem_partition_table[i].size;
+	/* Construct partition table */
+	for (i = 0; i < num_parts; i++)
+	{
+		size_t blks, size = oem_partition_table[i].size;
 
-        /* Calculate size of partition in blocks */
-        blks = (size / blkdev->blksz);
-        if ((size % blkdev->blksz) != 0) {
-            blks++;
-        }
-        parts[i].size = blks;
+		/* Calculate size of partition in blocks */
+		blks = (size / blkdev->blksz);
+		if ((size % blkdev->blksz) != 0) {
+			blks++;
+		}
+		parts[i].size = blks;
 
-        /* Set partition UUID */
-        gen_rand_uuid_str(parts[i].uuid, UUID_STR_FORMAT_STD);
+		/* Set partition UUID */
+		gen_rand_uuid_str(parts[i].uuid, UUID_STR_FORMAT_STD);
 
-        /* Copy partition name */
-        strcpy((char*)parts[i].name, oem_partition_table[i].name);
+		/* Copy partition name */
+		strcpy((char*)parts[i].name, oem_partition_table[i].name);
 
-        /* Append slot if exist */
-        if (oem_partition_table[i].slot != NULL) {
-            strcat((char*)parts[i].name, oem_partition_table[i].slot);
-        }
-    }
+		/* Append slot if exist */
+		if (oem_partition_table[i].slot != NULL) {
+			strcat((char*)parts[i].name, oem_partition_table[i].slot);
+		}
+	}
 
-    /* Gen disk UUID */
-    gen_rand_uuid_str(uuid, UUID_STR_FORMAT_STD);
+	/* Gen disk UUID */
+	gen_rand_uuid_str(uuid, UUID_STR_FORMAT_STD);
 
-    /* Save partitions layout to disk */
-    if (gpt_restore(blkdev, uuid, parts, num_parts) < 0) {
-        fastboot_fail(" Save partitions layout to disk failed", response);
-        free(parts);
-        return -1;
-    }
+	/* Save partitions layout to disk */
+	if (gpt_restore(blkdev, uuid, parts, num_parts) < 0) {
+		fastboot_fail(" Save partitions layout to disk failed", response);
+		free(parts);
+		return -1;
+	}
 
-    free(parts);
+	free(parts);
 
-    fastboot_response("INFO",response, " Created new GPT partition table:");
+	fastboot_send_response("INFO Created new GPT partition table:");
 
-    for (i = 0; i < num_parts; i++) {
-        disk_partition_t info;
+	for (i = 0; i < num_parts; i++) {
+		disk_partition_t info;
 
-        strcpy(name, oem_partition_table[i].name);
+		strcpy(name, oem_partition_table[i].name);
 
-        /* Append slot if exist */
-        if (oem_partition_table[i].slot != NULL) {
-            strcat(name, oem_partition_table[i].slot);
-        }
+		/* Append slot if exist */
+		if (oem_partition_table[i].slot != NULL) {
+			strcat(name, oem_partition_table[i].slot);
+		}
 
-        if (part_get_info_by_name(blkdev, name, &info) >= 0) {
-            fastboot_response("INFO", response, "     /%s (%zu KiB, %s)",
-                info.name, (info.size * blkdev->blksz) / 1024, oem_partition_table[i].fs);
-        } else {
-            fastboot_response("INFO", "     /%s (ERROR unable to get info)",
-                oem_partition_table[i].name);
-        }
-    }
+		if (part_get_info_by_name(blkdev, name, &info) >= 0) {
+		fastboot_send_response("INFO     /%s (%zu KiB, %s)",
+			info.name, (info.size * blkdev->blksz) / 1024, oem_partition_table[i].fs);
+		} else {
+			fastboot_send_response("INFO     /%s (ERROR unable to get info)",
+				oem_partition_table[i].name);
+		}
+	}
 
-    fastboot_okay(NULL, response);
-    return 0;
+	fastboot_okay(NULL, response);
+	return 0;
 }
 
 static int oem_erase(char *response)
 {
 	struct bootloader_message bcb;
 
-    if(get_bootloader_message(&bcb)) {
-        fastboot_fail(" load bootloader control block", response);
-        return -1;
-    }
+	if(get_bootloader_message(&bcb)) {
+		fastboot_fail(" load bootloader control block", response);
+		return -1;
+	}
 
-    memset(&bcb.command, 0, sizeof(bcb.command));
-    memset(&bcb.recovery, 0, sizeof(bcb.recovery));
+	memset(&bcb.command, 0, sizeof(bcb.command));
+	memset(&bcb.recovery, 0, sizeof(bcb.recovery));
 
-    strlcpy(bcb.command, "boot-recovery", sizeof(bcb.command));
+	strlcpy(bcb.command, "boot-recovery", sizeof(bcb.command));
 
-    snprintf(bcb.recovery, sizeof(bcb.recovery),
-        "recovery\n" \
-        "--erase_sstdata\n"
+	snprintf(bcb.recovery, sizeof(bcb.recovery),
+		"recovery\n" \
+		"--erase_sstdata\n"
 	);
 
-    if(set_bootloader_message(&bcb) < 0) {
-        fastboot_fail(" write bootloader control block", response);
-        return -1;
-    }
-    return INT_MAX; /* Reboot after exit */
+	if(set_bootloader_message(&bcb) < 0) {
+		fastboot_fail(" write bootloader control block", response);
+		return -1;
+	}
+	fastboot_set_reset_completion();
+	fastboot_okay(NULL, response);
+	return INT_MAX; /* Reboot after exit */
 }
 
 static int oem_lock_status(char *response)
 {
-    int ipl_locked = 0, mmc_locked = 0;
+	int ipl_locked = 0, mmc_locked = 0;
 
-    if (!fastboot_get_lock_status(&mmc_locked, &ipl_locked)) {
-        fastboot_response("INFO", response, " IPL %s", ipl_locked ? "locked" : "unlocked");
-        fastboot_response("INFO", response, " MMC %s", mmc_locked ? "locked" : "unlocked");
-    }
-    fastboot_okay(NULL, response);
-    return 0;
+	if (!fastboot_get_lock_status(&mmc_locked, &ipl_locked)) {
+		fastboot_send_response("INFO IPL %s", ipl_locked ? "locked" : "unlocked");
+		fastboot_send_response("INFO MMC %s", mmc_locked ? "locked" : "unlocked");
+	}
+	fastboot_okay(NULL, response);
+	return 0;
 }
 
 static int oem_setenv(char * varval, char *response)
@@ -224,9 +226,9 @@ static int oem_setenv(char * varval, char *response)
 		return -1;
 	}
 	if (varval && *varval != '\0') {
-		fastboot_response("INFO", response, " setting env %s=%s %ld", key, varval, strlen(varval));
+		fastboot_send_response("INFOsetting env %s=%s %d", key, varval, strlen(varval));
 	} else {
-		fastboot_response("INFO", response, "erase env %s", key);
+		fastboot_send_response("INFOerase env %s", key);
 	}
 	env_set(key, varval);
 	if (env_save()) {
@@ -239,54 +241,49 @@ static int oem_setenv(char * varval, char *response)
 
 void fastboot_cb_oem(char *cmd, char *response)
 {
-    int ipl_locked = 0, mmc_locked = 0;
-    char *cmdarg;
+	int ipl_locked = 0, mmc_locked = 0;
+	char *cmdarg;
 
-    printf("++%s(%s)\n", __func__, cmd);
+	strsep(&cmd, " ");
+	cmdarg = cmd;
+	strsep(&cmdarg, " ");
+	if (!strcmp(cmd, "help")) {
+		oem_dump_help(response);
+		return;
+	}
 
-    strsep(&cmd, " ");
-    printf("cmd1 = %s\n", cmd);
-    cmdarg = cmd;
-    strsep(&cmdarg, " ");
-    printf("cmdarg = %s\n", cmdarg);
+	if (!strcmp(cmd, "lock_status")) {
+		oem_lock_status(response);
+		return;
+	}
 
-    if (!strcmp(cmd, "help")) {
-        oem_dump_help(response);
-        return;
-    }
+	fastboot_get_lock_status(&mmc_locked, &ipl_locked);
 
-    if (!strcmp(cmd, "lock_status")) {
-        oem_lock_status(response);
-        return;
-    }
+	if (!strcmp(cmd, "format")) {
+		if (mmc_locked || ipl_locked) {
+			fastboot_fail("flash device locked", response);
+			return;
+		}
+		oem_format(response);
+		return;
+	}
 
-    fastboot_get_lock_status(&mmc_locked, &ipl_locked);
+	if (!strcmp(cmd, "erase")) {
+		if (mmc_locked || ipl_locked) {
+			fastboot_fail("erase device locked", response);
+			return;
+		}
+		oem_erase(response);
+		return;
+	}
 
-    if (!strcmp(cmd, "format")) {
-        if (mmc_locked || ipl_locked) {
-            fastboot_fail("flash device locked", response);
-            return;
-        }
-        oem_format(response);
-        return;
-    }
-
-    if (!strcmp(cmd, "erase")) {
-        if (mmc_locked || ipl_locked) {
-            fastboot_fail("erase device locked", response);
-            return;
-        }
-        oem_erase(response);
-        return;
-    }
-
-    if (!strcmp(cmd, "setenv")) {
-        if (cmdarg == NULL) {
-            fastboot_fail("oem setenv command requires one or two arguments", response);
-            return;
-        }
-        oem_setenv(cmdarg, response);
-        return;
-    }
-    fastboot_response("FAIL", response, " unsupported oem command: %s", cmd);
+	if (!strcmp(cmd, "setenv")) {
+		if (cmdarg == NULL) {
+			fastboot_fail("oem setenv command requires one or two arguments", response);
+			return;
+		}
+		oem_setenv(cmdarg, response);
+		return;
+	}
+	fastboot_response("FAIL", response, " unsupported oem command: %s", cmd);
 }
