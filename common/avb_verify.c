@@ -391,7 +391,9 @@ static AvbIOResult mmc_byte_io(AvbOps *ops,
 {
 	ulong ret;
 	struct mmc_part *part;
-	u64 start_offset, start_sector, sectors, residue;
+	int64_t start_offset;
+	uint64_t start_sector, sectors, residue;
+
 	u8 *tmp_buf;
 	size_t io_cnt = 0;
 
@@ -406,6 +408,11 @@ static AvbIOResult mmc_byte_io(AvbOps *ops,
 		return AVB_IO_RESULT_ERROR_IO;
 
 	start_offset = calc_offset(part, offset);
+	if (start_offset < 0) {
+		printf("%s: Offset out of partition range (%lld)\n", __func__,
+				start_offset);
+		return AVB_IO_RESULT_ERROR_RANGE_OUTSIDE_PARTITION;
+	}
 	while (num_bytes) {
 		start_sector = start_offset / part->info.blksz;
 		sectors = num_bytes / part->info.blksz;
