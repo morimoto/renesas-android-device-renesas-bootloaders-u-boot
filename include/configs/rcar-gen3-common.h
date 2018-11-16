@@ -83,6 +83,8 @@
 
 #ifndef __ASSEMBLY__
 void rcar_preset_env(void);
+void init_noreset_vars(void);
+void restore_noreset_vars(void);
 #endif
 
 #endif	/* __RCAR_GEN3_COMMON_H */

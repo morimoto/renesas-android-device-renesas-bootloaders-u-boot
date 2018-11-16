@@ -85,3 +85,54 @@ void rcar_preset_env(void)
 	}
 	return;
 }
+
+struct env_pair {
+	const char *var_name;
+	char *value;
+};
+
+/* Variables, that can not reset by 'env default' command */
+static struct env_pair env_pairs[] = {
+	{ "ethaddr", NULL},
+	{ "ethact",  NULL},
+};
+
+void init_noreset_vars(void) {
+	int i = 0;
+	char *buf = NULL;
+	int n = sizeof(env_pairs) / sizeof(struct env_pair);
+
+	for (; i < n; ++i) {
+		if (env_pairs[i].value)
+			free(env_pairs[i].value);
+		buf = env_get(env_pairs[i].var_name);
+		if (buf) {
+			env_pairs[i].value = (char *)malloc((strlen(buf) + 1) * sizeof(char));
+			if (env_pairs[i].value)
+				memcpy(env_pairs[i].value, buf, (strlen(buf) + 1));
+			else
+				goto free_mem;
+		} else {
+			env_pairs[i].value = NULL;
+		}
+	}
+
+	return;
+
+free_mem:
+	i--;
+	for (; i >= 0; i--) {
+		if (env_pairs[i].value)
+			free(env_pairs[i].value);
+	}
+
+	printf("## ERROR - not enough memory for saving variable(s), that can not reset\n");
+}
+
+void restore_noreset_vars(void) {
+	int i = 0;
+	int n = sizeof(env_pairs) / sizeof(struct env_pair);
+
+	for (; i < n; ++i)
+		env_set(env_pairs[i].var_name, env_pairs[i].value);
+}

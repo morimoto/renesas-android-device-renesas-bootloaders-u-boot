@@ -65,6 +65,7 @@ void set_default_env(const char *s, int flags)
 		return;
 	}
 
+	init_noreset_vars();
 	if (s) {
 		if ((flags & H_INTERACTIVE) == 0) {
 			printf("*** Warning - %s, "
@@ -87,6 +88,7 @@ void set_default_env(const char *s, int flags)
 
 	/* Set proper platform in environment */
 	rcar_preset_env();
+	restore_noreset_vars();
 }
 
 
