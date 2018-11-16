@@ -32,7 +32,11 @@ const uchar default_environment[] = {
 	"bootargs="	CONFIG_BOOTARGS			"\0"
 #endif
 #ifdef	CONFIG_BOOTCOMMAND
+#ifdef ANDROID_MMC_ONE_SLOT
 	"bootcmd="	CONFIG_BOOTCOMMAND		"\0"
+#else
+	"bootcmd="	CONFIG_BOOTCOMMAND " avb" "\0"
+#endif
 #endif
 #ifdef	CONFIG_RAMBOOTCOMMAND
 	"ramboot="	CONFIG_RAMBOOTCOMMAND		"\0"

@@ -23,4 +23,11 @@
 #define CONFIG_SYS_MMC_ENV_DEV		1
 #define CONFIG_SYS_MMC_ENV_PART		2
 
+#define CONFIG_EXTRA_ENV_SETTINGS \
+	"fdt_high=0xffffffffffffffff\0" \
+	"initrd_high=0xffffffffffffffff\0" \
+	"serialno=0000\0" \
+	"product=ulcb\0" \
+	"recovery=setenv bootmode recovery; run bootcmd;\0"
+
 #endif /* __ULCB_H */

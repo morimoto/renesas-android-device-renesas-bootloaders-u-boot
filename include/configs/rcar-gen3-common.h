@@ -63,16 +63,6 @@
 #define CONFIG_ENV_SIZE		(CONFIG_ENV_SECT_SIZE)
 #define CONFIG_ENV_SIZE_REDUND	(CONFIG_ENV_SIZE)
 
-#define CONFIG_EXTRA_ENV_SETTINGS	\
-	"usb_pgood_delay=2000\0"	\
-	"fdt_high=0xffffffffffffffff\0"	\
-	"initrd_high=0xffffffffffffffff\0"
-
-#define CONFIG_BOOTCOMMAND	\
-	"tftp 0x48080000 Image; " \
-	"tftp 0x48000000 Image-"CONFIG_DEFAULT_FDT_FILE"; " \
-	"booti 0x48080000 - 0x48000000"
-
 #define RCAR_GENERIC_PLAT_ID		0x00779000
 
 #define CPU_ID_R8A7795				0x4F
