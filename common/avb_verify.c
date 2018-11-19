@@ -188,11 +188,18 @@ static char *avb_set_enforce_option(const char *cmdline, const char *option)
 {
 	char *cmdarg[AVB_MAX_ARGS];
 	char *newargs = NULL;
-	int i = 0;
-	int total_args;
+	int i = 0, total_args;
+	char *cmdline_buf = NULL;
+	const int cmdline_buf_len = avb_strlen(cmdline) + 1;
+
+	cmdline_buf = avb_malloc(cmdline_buf_len);
+	if (!cmdline_buf) {
+		return NULL;
+	}
+	strncpy(cmdline_buf, cmdline, cmdline_buf_len);
 
 	memset(cmdarg, 0, sizeof(cmdarg));
-	cmdarg[i++] = strtok((char *)cmdline, " ");
+	cmdarg[i++] = strtok(cmdline_buf, " ");
 
 	do {
 		cmdarg[i] = strtok(NULL, " ");
@@ -202,6 +209,7 @@ static char *avb_set_enforce_option(const char *cmdline, const char *option)
 		if (++i >= AVB_MAX_ARGS) {
 			printf("%s: Can't handle more then %d args\n",
 			       __func__, i);
+			avb_free(cmdline_buf);
 			return NULL;
 		}
 	} while (true);
@@ -214,6 +222,7 @@ static char *avb_set_enforce_option(const char *cmdline, const char *option)
 		i = avb_find_dm_args(&cmdarg[0], VERITY_TABLE_OPT_RESTART);
 		if (i < 0) {
 			printf("%s: No verity options found\n", __func__);
+			avb_free(cmdline_buf);
 			return NULL;
 		}
 
@@ -223,6 +232,7 @@ static char *avb_set_enforce_option(const char *cmdline, const char *option)
 	for (i = 0; i <= total_args; i++)
 		newargs = append_cmd_line(newargs, cmdarg[i]);
 
+	avb_free(cmdline_buf);
 	return newargs;
 }
 
@@ -230,16 +240,25 @@ static char *avb_set_veritymode(const char *cmdline, const char *veritymode)
 {
 	char *cmdarg[AVB_MAX_ARGS], *newargs = NULL;
 	int i = 0, total_args;
+	char *cmdline_buf = NULL;
+	const int cmdline_buf_len = avb_strlen(cmdline) + 1;
+
+	cmdline_buf = avb_malloc(cmdline_buf_len);
+	if (!cmdline_buf) {
+		return NULL;
+	}
+	strncpy(cmdline_buf, cmdline, cmdline_buf_len);
 
 	memset(cmdarg, 0, sizeof(cmdarg));
 	/*Split the cmdline*/
-	cmdarg[i++] = strtok((char *)cmdline, " ");
+	cmdarg[i++] = strtok(cmdline_buf, " ");
 	do {
 		if ((cmdarg[i] = strtok(NULL, " ")) == NULL) {
 			break;
 		}
 		if (++i >= AVB_MAX_ARGS) {
 			/*Can't handle, return the same cmdline*/
+			avb_free(cmdline_buf);
 			return (char *)cmdline;
 		}
 	} while (1);
@@ -264,6 +283,7 @@ static char *avb_set_veritymode(const char *cmdline, const char *veritymode)
 		newargs = append_cmd_line(newargs, cmdarg[i]);
 	}
 
+	avb_free(cmdline_buf);
 	return newargs;
 }
 
