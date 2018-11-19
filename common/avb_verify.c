@@ -226,26 +226,72 @@ static char *avb_set_enforce_option(const char *cmdline, const char *option)
 	return newargs;
 }
 
+static char *avb_set_veritymode(const char *cmdline, const char *veritymode)
+{
+	char *cmdarg[AVB_MAX_ARGS], *newargs = NULL;
+	int i = 0, total_args;
+
+	memset(cmdarg, 0, sizeof(cmdarg));
+	/*Split the cmdline*/
+	cmdarg[i++] = strtok((char *)cmdline, " ");
+	do {
+		if ((cmdarg[i] = strtok(NULL, " ")) == NULL) {
+			break;
+		}
+		if (++i >= AVB_MAX_ARGS) {
+			/*Can't handle, return the same cmdline*/
+			return (char *)cmdline;
+		}
+	} while (1);
+
+	/*We've parsed the string, now we've to find the verity mode */
+	total_args = i;
+
+	/*We suppose to have 'androidboot.veritymode=xxx' options */
+	i = avb_find_dm_args(&cmdarg[0], "androidboot.veritymode=");
+	if (i >= 0) {
+		/*Was found, replace with needed*/
+		cmdarg[i] = (char *)veritymode;
+	} else {
+		/*There is no verity mode, we've to add (append) it to the end
+		 * and increment args count.
+		 */
+		cmdarg[total_args++] = (char *)veritymode;
+	}
+
+	/*Let's assemble cmdline*/
+	for (i = 0; i<= total_args; i++) {
+		newargs = append_cmd_line(newargs, cmdarg[i]);
+	}
+
+	return newargs;
+}
+
 char *avb_set_ignore_corruption(const char *cmdline)
 {
-	char *newargs = NULL;
+	char *newargs = NULL, *tempargs = NULL;
 
 	newargs = avb_set_enforce_option(cmdline, VERITY_TABLE_OPT_LOGGING);
-	if (newargs)
-		newargs = append_cmd_line(newargs,
-					  "androidboot.veritymode=eio");
+	if (newargs) {
+		tempargs = newargs;
+		newargs = avb_set_veritymode(tempargs,
+				"androidboot.veritymode=eio");
+	}
 
 	return newargs;
 }
 
 char *avb_set_enforce_verity(const char *cmdline)
 {
-	char *newargs;
+	char *newargs = NULL, *tempargs = NULL;
 
 	newargs = avb_set_enforce_option(cmdline, VERITY_TABLE_OPT_RESTART);
-	if (newargs)
-		newargs = append_cmd_line(newargs,
-					  "androidboot.veritymode=enforcing");
+	if (newargs) {
+		tempargs = newargs;
+		newargs = avb_set_veritymode(tempargs,
+				"androidboot.veritymode=enforcing");
+	}
+
 	return newargs;
 }
 
