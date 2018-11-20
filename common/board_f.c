@@ -140,6 +140,60 @@ static int display_text_info(void)
 	return 0;
 }
 
+#if defined(CONFIG_OF_BOARD) || defined(CONFIG_OF_SEPARATE)
+extern __weak void *board_fdt_blob_setup(void);
+#endif
+
+static int display_fdt_info(void)
+{
+#if CONFIG_IS_ENABLED(OF_CONTROL)
+# if CONFIG_IS_ENABLED(MULTI_DTB_FIT) && CONFIG_IS_ENABLED(OF_SEPARATE)
+	void *fdt_blob;
+	const char *name, *node_name;
+	int conf, node, len;
+	const char *dflt_conf_name;
+	const char *dflt_conf_desc = NULL;
+	int dflt_conf_node = -ENOENT;
+
+	fdt_blob = board_fdt_blob_setup();
+	if (!fdt_blob)
+		return 0;
+
+	conf = fdt_path_offset(fdt_blob, FIT_CONFS_PATH);
+	if (conf < 0)
+		return 0;
+
+	dflt_conf_name = fdt_getprop(fdt_blob, conf, FIT_DEFAULT_PROP, &len);
+
+	for (node = fdt_first_subnode(fdt_blob, conf);
+			node >= 0; node = fdt_next_subnode(fdt_blob, node)) {
+
+		name = fdt_getprop(fdt_blob, node, FIT_DESC_PROP, &len);
+		if (!name)
+			return 0;
+
+		if (dflt_conf_name) {
+			node_name = fdt_get_name(fdt_blob, node, NULL);
+			if (strcmp(dflt_conf_name, node_name) == 0) {
+				dflt_conf_node = node;
+				dflt_conf_desc = name;
+			}
+		}
+
+		if (board_fit_config_name_match(name))
+			continue;
+
+		printf("Config: %s\n", name);
+		return 0;
+	}
+
+	if (dflt_conf_node != -ENOENT)
+		printf("Default config: %s/n", dflt_conf_desc);
+# endif
+#endif
+	return 0;
+}
+
 static int announce_dram_init(void)
 {
 	puts("DRAM:  ");
@@ -787,6 +841,7 @@ static const init_fnc_t init_sequence_f[] = {
 	console_init_f,		/* stage 1 init of console */
 	display_options,	/* say that we are here */
 	display_text_info,	/* show debugging info if required */
+	display_fdt_info,	/* show selected FDT */
 #if defined(CONFIG_PPC) || defined(CONFIG_SH) || defined(CONFIG_X86)
 	checkcpu,
 #endif
