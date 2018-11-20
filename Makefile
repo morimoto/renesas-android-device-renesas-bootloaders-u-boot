@@ -373,6 +373,7 @@ KBUILD_CFLAGS   := -Wall -Wstrict-prototypes \
 		   -Wno-format-security \
 		   -fno-builtin -ffreestanding $(CSTD_FLAG)
 KBUILD_CFLAGS	+= -fshort-wchar
+KBUILD_CFLAGS	+= -Werror
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
 # Don't generate position independent code

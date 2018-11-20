@@ -102,8 +102,6 @@ static inline bool of_live_active(void)
 }
 #endif
 
-#define OF_BAD_ADDR	((u64)-1)
-
 static inline const char *of_node_full_name(const struct device_node *np)
 {
 	return np ? np->full_name : "<no-node>";
