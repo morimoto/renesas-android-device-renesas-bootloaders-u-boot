@@ -223,6 +223,13 @@ config LIBAVB_AB
 	default n
 	help
 	  This enables support of AB slots which can be used for AB updates.
+
+config LIBAVB_SHA256_V8_EXT
+	bool "Core SHA-224/SHA-256 transform using v8 Crypto Extensions"
+	depends on LIBAVB
+	default n
+	help
+	  This enables support of SHA-224/SHA-256 transform using v8 Crypto Extensions.
 endif #LIBAVB
 
 endmenu
