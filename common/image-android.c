@@ -136,11 +136,14 @@ int android_image_get_ramdisk(const struct andr_img_hdr *hdr,
 
 	printf("RAM disk load addr 0x%08x size %u KiB\n",
 	       hdr->ramdisk_addr, DIV_ROUND_UP(hdr->ramdisk_size, 1024));
-
+#if defined(CONFIG_RCAR_GEN3)
+	*rd_data = hdr->ramdisk_addr;
+#else
 	*rd_data = (unsigned long)hdr;
 	*rd_data += hdr->page_size;
 	*rd_data += ALIGN(hdr->kernel_size, hdr->page_size);
-
+-
+#endif
 	*rd_len = hdr->ramdisk_size;
 	return 0;
 }

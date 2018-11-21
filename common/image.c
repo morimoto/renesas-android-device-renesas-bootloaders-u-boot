@@ -1020,7 +1020,9 @@ int boot_get_ramdisk(int argc, char * const argv[], bootm_headers_t *images,
 		 * address provided in the second bootm argument
 		 * check image type, for FIT images get FIT node.
 		 */
+#ifndef CONFIG_ANDROID_BOOT_IMAGE
 		buf = map_sysmem(rd_addr, 0);
+#endif
 		switch (genimg_get_format(buf)) {
 #if defined(CONFIG_IMAGE_FORMAT_LEGACY)
 		case IMAGE_FORMAT_LEGACY:
