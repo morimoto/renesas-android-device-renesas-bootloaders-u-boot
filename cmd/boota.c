@@ -454,7 +454,7 @@ add_dtbo_index_exit1:
 	return;
 }
 
- 
+
 /*We will use this for zipped kernel loading*/
 #define GZIP_LOAD_ADDR	0x4c000000
 #define GZIP_MAGIC 0x8B1F
@@ -823,12 +823,12 @@ static char *hex_to_str(u8 *data, size_t size)
 	return paddr + 1;
 }
 
-
-static void build_new_args(ulong addr, char *argv[4]) {
+#define MAX_BOOTI_ARGC 4
+static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
 	struct andr_img_hdr *hdr = map_sysmem(addr, 0);
 
 	argv[1] = avb_strdup(hex_to_str((u8 *)&hdr->kernel_addr, sizeof(hdr->kernel_addr)));
-	argv[2] = "-";
+	argv[2] = avb_strdup(hex_to_str((u8 *)&hdr->ramdisk_addr, sizeof(hdr->ramdisk_addr)));
 	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->second_addr, sizeof(hdr->second_addr)));
 }
 
@@ -1045,15 +1045,15 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	char *boot_part = NULL, *fdt_part = "dtb", *dtbo_part = "dtbo";
 	bool load = true, avb = false;
 	struct blk_desc *dev_desc;
-	char *new_argv[4];
-	
+	char *new_argv[MAX_BOOTI_ARGC];
+
 	new_argv[0] = argv[0];
 	argc--; argv++;
 
 	if (argc < 1) {
 		return CMD_RET_USAGE;
 	}
- 
+
 	if (argc >= 2) {
 		dev = (int) simple_strtoul(argv[0], NULL, 10);
 		argc--; argv++;
@@ -1139,8 +1139,8 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		return ret;
 	}
 	build_new_args(addr, new_argv);
-	argc = sizeof(new_argv);
-
+	argc = MAX_BOOTI_ARGC;
+	images.os.start = addr;
 	return do_booti(cmdtp, flag, argc, new_argv);
 }
 
