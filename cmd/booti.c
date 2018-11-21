@@ -24,6 +24,9 @@ static int booti_start(cmd_tbl_t *cmdtp, int flag, int argc,
 	ulong ld;
 	ulong relocated_addr;
 	ulong image_size;
+#if defined(CONFIG_RCAR_GEN3)
+	ulong os_start = images->os.start;
+#endif
 
 	ret = do_bootm_states(cmdtp, flag, argc, argv, BOOTM_STATE_START,
 			      images, 1);
@@ -53,6 +56,10 @@ static int booti_start(cmd_tbl_t *cmdtp, int flag, int argc,
 	images->os.end = relocated_addr + image_size;
 
 	lmb_reserve(&images->lmb, images->ep, le32_to_cpu(image_size));
+
+#if defined(CONFIG_RCAR_GEN3)
+	images->os.start = os_start;
+#endif
 
 	/*
 	 * Handle the BOOTM_STATE_FINDOTHER state ourselves as we do not
