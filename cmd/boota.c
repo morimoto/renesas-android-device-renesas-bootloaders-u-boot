@@ -373,6 +373,30 @@ static void set_cpu_revision_args(void) {
 	free(newbootargs);
 }
 
+#define OTA_CRITICAL_PART "blkdevparts=mmcblk0boot0:2m(bootloader_a);" \
+		"mmcblk0boot1:2m(bootloader_b)"
+static void set_blkdevparts_args(void) {
+	char *bootargs = env_get("bootargs");
+	int len = 0;
+	int ipl_locked = 0;
+	if (bootargs)
+		len += strlen(bootargs);
+	if (!fastboot_get_lock_status(NULL, &ipl_locked)) {
+		if (!ipl_locked) {
+			len += strlen(OTA_CRITICAL_PART) + 2;
+			char *newbootargs = malloc(len);
+			if (newbootargs) {
+				snprintf(newbootargs, len, OTA_CRITICAL_PART" %s", bootargs);
+				env_set("bootargs", newbootargs);
+			} else {
+				puts("Error: malloc in set_blkdevparts_args failed!\n");
+				return;
+			}
+			free(newbootargs);
+		}
+	}
+}
+
 static char * assemble_dtbo_idx_string(int indx[], size_t size)
 {
 	const char * dtbo_str = "androidboot.dtbo_idx=";
@@ -627,6 +651,7 @@ static int load_dt_with_overlays(struct fdt_header *load_addr,
 
 	set_board_id_args(plat_id);
 	set_cpu_revision_args();
+	set_blkdevparts_args();
 
 	/* Base device tree should be loaded in defined address */
 	load_dt_at_addr(load_addr, base_dt_entry, dt_tbl);
