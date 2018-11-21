@@ -318,7 +318,24 @@ void fastboot_data_complete(char *response)
  */
 static void flash(char *cmd_parameter, char *response)
 {
+	int ipl_locked, mmc_locked;
+
 	strsep(&cmd_parameter, ":");
+	if (!cmd_parameter) {
+		fastboot_fail("missing partition name", response);
+		return;
+	}
+
+	if (!fastboot_get_lock_status(&mmc_locked, &ipl_locked)) {
+		int bootloader = (strcmp(cmd_parameter, "bootloader") == 0);
+
+		if ((mmc_locked && !bootloader) || (ipl_locked && bootloader)) {
+			fastboot_fail("flash device locked", response);
+			return;
+		}
+	}
+
+	fastboot_fail("no flash device defined", response);
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 	fastboot_mmc_flash_write(cmd_parameter, fastboot_buf_addr, image_size,
 				 response);
@@ -340,7 +357,24 @@ static void flash(char *cmd_parameter, char *response)
  */
 static void erase(char *cmd_parameter, char *response)
 {
+	int ipl_locked, mmc_locked;
+
 	strsep(&cmd_parameter, ":");
+	if (!cmd_parameter) {
+		fastboot_fail("missing partition name", response);
+		return;
+	}
+
+	if (!fastboot_get_lock_status(&mmc_locked, &ipl_locked)) {
+		int bootloader = (strcmp(cmd_parameter, "bootloader") == 0);
+
+		if ((mmc_locked && !bootloader) || (ipl_locked && bootloader)) {
+			fastboot_fail("flash device locked", response);
+			return;
+		}
+	}
+
+	fastboot_fail("no flash device defined", response);
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
 	fastboot_mmc_erase(cmd_parameter, response);
 #endif
