@@ -51,6 +51,7 @@
 #endif
 
 #define	ADSP_DTBO_NUM			4
+#define	PARTITIONS_DTBO_NUM		5
 
 /* Unpacked kernel image size must be no more than
  * andr_img_hdr.ramdisk_addr -  andr_img_hdr.kernel_addr,
@@ -646,6 +647,11 @@ static int load_dt_with_overlays(struct fdt_header *load_addr,
 	dmbo_indx[dmbo_count] = ADSP_DTBO_NUM;
 	++dmbo_count;
 #endif /* defined(ENABLE_ADSP) */
+
+#if defined(ENABLE_PRODUCT_PART)
+	dmbo_indx[dmbo_count] = PARTITIONS_DTBO_NUM;
+	++dmbo_count;
+#endif /* defined(ENABLE_PRODUCT_PART) */
 
 	add_dtbo_index(dmbo_indx, dmbo_count);
 
