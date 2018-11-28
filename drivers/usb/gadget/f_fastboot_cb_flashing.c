@@ -59,7 +59,7 @@ int fastboot_load_control_block(struct fastboot_control_block *ctrlb)
 		return FB_ERR_GENERIC;
 	}
 
-	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	dev_desc = mmc_get_blk_desc(mmc_dev);
 	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
 		pr_err("invalid mmc device\n");
 		return -EIO;
@@ -115,7 +115,7 @@ int fastboot_save_control_block(struct fastboot_control_block *ctrlb)
 		return -1;
 	}
 
-	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	dev_desc = mmc_get_blk_desc(mmc_dev);
 	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
 		pr_err("invalid mmc device\n");
 		return -EIO;
