@@ -161,7 +161,6 @@ static uint32_t get_overlay_order(ulong *overlay_order, uint32_t max_size)
 	}
 
 	if (!iter) {
-		printf("bootarg parameter \"androidboot.dtbo_idx\" is not set\n");
 		return overlay_count;
 	}
 
@@ -674,8 +673,7 @@ static int load_dt_with_overlays(struct fdt_header *load_addr,
 	applied_overlays = apply_all_overlays(load_addr, base_dt_entry,
 		dto_tbl, plat_id);
 
-	if (applied_overlays)
-		printf("Successfully applied %ld overlay(s)\n", applied_overlays);
+	printf("Applied %ld overlay(s)\n", applied_overlays);
 
 	return 0;
 }
