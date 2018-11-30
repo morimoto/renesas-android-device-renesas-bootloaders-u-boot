@@ -52,7 +52,28 @@ _bss_start_ofs:
 _bss_end_ofs:
 	.quad	__bss_end - _start
 
+.globl	_arg0
+_arg0:
+	.dword	0
+
+.globl	_arg1
+_arg1:
+	.dword	0
+
+p_arg0 : .quad _arg0
+p_arg1 : .quad _arg1
+
 reset:
+	/* ---------------------------------------------------------------
+	 * Preceding bootloader has populated x0 and x1 with a platform
+	 * specific params, so store them
+	 * ---------------------------------------------------------------
+	 */
+	ldr	x20, p_arg0
+	ldr	x21, p_arg1
+	str	x0, [x20]
+	str	x1, [x21]
+
 	/* Allow the board to save important registers */
 	b	save_boot_params
 .globl	save_boot_params_ret

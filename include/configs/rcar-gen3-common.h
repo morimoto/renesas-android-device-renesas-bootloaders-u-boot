@@ -52,6 +52,11 @@
 #define CONFIG_SYS_BOOTMAPSZ		(8 * 1024 * 1024)
 #define CONFIG_SYS_BOOTM_LEN		(64 << 20)
 
+/*This values are used for RAM autodetection only*/
+#define	BOARDCNF_8GBIT_1RANK	7	/* Board with H3 Ver.2.0 or later/SIP(8Gbit 1rank) */
+#define	BOARDCNF_8GBIT_2RANK	8	/* Board with H3 Ver.2.0 or later/SIP(8Gbit 2rank) */
+
+
 /* ENV setting */
 #define CONFIG_ENV_OVERWRITE
 #define CONFIG_ENV_SECT_SIZE	(128 * 1024)
