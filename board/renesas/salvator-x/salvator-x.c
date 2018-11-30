@@ -28,6 +28,10 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+#if defined(RCAR_DRAM_AUTO) && defined(CONFIG_R8A7795)
+extern uint32_t _arg1; /* defined at arch/arm/cpu/armv8/start.S */
+#endif
+
 void s_init(void)
 {
 }

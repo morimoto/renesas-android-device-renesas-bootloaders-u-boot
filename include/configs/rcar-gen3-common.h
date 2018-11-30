@@ -53,6 +53,10 @@
 /* The HF/QSPI layout permits up to 1 MiB large bootloader blob */
 #define CONFIG_BOARD_SIZE_LIMIT		1048576
 
+/*This values are used for RAM autodetection only*/
+#define	BOARDCNF_8GBIT_1RANK	7	/* Board with H3 Ver.2.0 or later/SIP(8Gbit 1rank) */
+#define	BOARDCNF_8GBIT_2RANK	8	/* Board with H3 Ver.2.0 or later/SIP(8Gbit 2rank) */
+
 /* ENV setting */
 #define CONFIG_ENV_OVERWRITE
 
