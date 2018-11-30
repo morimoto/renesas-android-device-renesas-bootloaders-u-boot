@@ -69,7 +69,7 @@
 	SILENT_CALLBACK \
 	SPLASHIMAGE_CALLBACK \
 	"stdin:console,stdout:console,stderr:console," \
-	"serial#:serialno," \
+	"serialno:serialno," \
 	CONFIG_ENV_CALLBACK_LIST_STATIC
 
 void env_callback_init(struct env_entry *var_entry);
