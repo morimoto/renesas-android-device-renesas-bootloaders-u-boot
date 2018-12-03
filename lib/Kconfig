@@ -199,6 +199,13 @@ config LIBAVB
 	  device. Introduces such features as boot chain of trust, rollback
 	  protection etc.
 
+config LIBAVB_AB
+	bool "Android AB slots support based on Verified Boot 2.0"
+	depends on LIBAVB
+	default n
+	help
+	  This enables support of AB slots which can be used for AB updates.
+
 endmenu
 
 menu "Hashing Support"
