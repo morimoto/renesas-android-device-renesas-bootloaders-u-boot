@@ -1177,7 +1177,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	if (avb) {
 		ret = do_boot_avb(dev, &new_argv[1]);
 		if (ret == CMD_RET_SUCCESS) {
-			addr = (int) simple_strtoul(new_argv[1], NULL, 16);
+			addr = simple_strtoul(new_argv[1], NULL, 16);
 		}
 	} else {
 		/*We have to remove vbmeta node if we boot without avb*/
