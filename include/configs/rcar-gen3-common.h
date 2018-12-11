@@ -77,9 +77,9 @@
 /*
  * This define is specify the bootloader partition size
  * in mmcblk0boot0/1.
- * 4096 blocks = 2Mb
+ * 8192 blocks = 4Mb
  */
-#define BOOTLOADER_BLK_SIZE			(4096)
+#define BOOTLOADER_BLK_SIZE			(8192)
 
 #ifndef __ASSEMBLY__
 void rcar_preset_env(void);
