@@ -373,8 +373,8 @@ static void set_cpu_revision_args(void) {
 	free(newbootargs);
 }
 
-#define OTA_CRITICAL_PART "blkdevparts=mmcblk0boot0:2m(bootloader_a);" \
-		"mmcblk0boot1:2m(bootloader_b)"
+#define OTA_CRITICAL_PART "blkdevparts=mmcblk0boot0:4m(bootloader_a);" \
+		"mmcblk0boot1:4m(bootloader_b)"
 static void set_blkdevparts_args(void) {
 	char *bootargs = env_get("bootargs");
 	int len = 0;
