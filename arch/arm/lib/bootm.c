@@ -37,6 +37,8 @@ DECLARE_GLOBAL_DATA_PTR;
 
 static struct tag *params;
 
+static void set_boottime_args(void);
+
 static ulong get_sp(void)
 {
 	ulong ret;
@@ -227,6 +229,11 @@ static void boot_prep_linux(bootm_headers_t *images)
 {
 	char *commandline = env_get("bootargs");
 
+	/* Pass boot-time parameter to Android.
+	 * This action must be taken before sending the cmdline to the kernel.
+	 * Otherwise, the boottime parameter will be lost.
+	 */
+	set_boottime_args();
 	if (IMAGE_ENABLE_OF_LIBFDT && images->ft_len) {
 #ifdef CONFIG_OF_LIBFDT
 		debug("using: FDT\n");
@@ -321,13 +328,18 @@ static void set_boottime_args(void) {
 	ulong boot_time;
 	char *bootargs = env_get("bootargs");
 	int len = 0;
+	/* boot_prep_time is boot_prep_linux() and announce_and_cleanup()
+	 * functions execution time. The constant was calculated by measuring
+	 * the time repeatedly and taking the average value
+	 */
+	const int boot_prep_time = 42;
 	if (bootargs)
 		len += strlen(bootargs);
 	len += 33; /* for 'androidboot.boottime=xxxx.xxxx '*/
 	char *newbootargs = malloc(len);
 	if (newbootargs) {
 		/* Add bootloaders boot time to the Kernel command line */
-		boot_time = get_timer(0);
+		boot_time = get_timer(0) + boot_prep_time;
 		snprintf(newbootargs, len, "androidboot.boottime=%lu.%lu %s",
 				boot_time / 1000, boot_time % 1000, bootargs);
 		env_set("bootargs", newbootargs);
@@ -363,8 +375,6 @@ static void boot_jump_linux(bootm_headers_t *images, int flag)
 
 		update_os_arch_secondary_cores(images->os.arch);
 
-		/* Pass boot-time parameter to Android */
-		set_boottime_args();
 #ifdef CONFIG_ARMV8_SWITCH_TO_EL1
 		armv8_switch_to_el2((u64)images->ft_addr, 0, 0, 0,
 				    (u64)switch_to_el1, ES_TO_AARCH64);
