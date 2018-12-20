@@ -15,7 +15,7 @@ config SYS_CONFIG_NAME
 config FASTBOOT_BY_SW
 bool "Enter fastboot by SW3"
 	default n
-	depends on R8A7795 || R8A7796X
+	depends on R8A7795 || R8A7796
 	help
 	  Allows to enter at fastboot mode while
 	  holding down SW3 button
