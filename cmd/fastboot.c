@@ -36,10 +36,15 @@ static int do_fastboot_usb(int argc, char *const argv[],
 			   uintptr_t buf_addr, size_t buf_size)
 {
 #if CONFIG_IS_ENABLED(USB_FUNCTION_FASTBOOT)
-	int controller_index;
+	int controller_index = 0;
+	int ret;
+/*
+ * Renesas USB controller no needs to call @board_usb_init function,
+ * that's why we don't need to pass the @usb_controller argument.
+ */
+#ifndef CONFIG_USB_RENESAS_USBHS
 	char *usb_controller;
 	char *endp;
-	int ret;
 
 	if (argc < 2)
 		return CMD_RET_USAGE;
@@ -56,11 +61,13 @@ static int do_fastboot_usb(int argc, char *const argv[],
 		pr_err("USB init failed: %d\n", ret);
 		return CMD_RET_FAILURE;
 	}
+#endif
 
 	g_dnl_clear_detach();
 	ret = g_dnl_register("usb_dnl_fastboot");
 	if (ret)
 		return ret;
+
 
 	if (!g_dnl_board_usb_cable_connected()) {
 		puts("\rUSB cable not detected.\n" \
@@ -96,8 +103,11 @@ int do_fastboot(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 	uintptr_t buf_addr = (uintptr_t)NULL;
 	size_t buf_size = 0;
 
+/* Use fastboot USB method by default for Renesas products */
+#ifndef CONFIG_USB_RENESAS_USBHS
 	if (argc < 2)
 		return CMD_RET_USAGE;
+#endif
 
 	while (argc > 1 && **(argv + 1) == '-') {
 		char *arg = *++argv;
@@ -125,11 +135,17 @@ NXTARG:
 		;
 	}
 
+/*
+ * Renesas USB controller no needs to call @board_usb_init function,
+ * that's why we don't need to pass the @usb_controller argument.
+ */
+#ifndef CONFIG_USB_RENESAS_USBHS
 	/* Handle case when USB controller param is just '-' */
 	if (argc == 1) {
 		pr_err("Error: Incorrect USB controller index\n");
 		return CMD_RET_USAGE;
 	}
+#endif
 
 	fastboot_init((void *)buf_addr, buf_size);
 
@@ -146,7 +162,12 @@ NXTARG:
 
 #ifdef CONFIG_SYS_LONGHELP
 static char fastboot_help_text[] =
+/* Use fastboot USB method by default for Renesas products */
+#ifndef CONFIG_USB_RENESAS_USBHS
 	"[-l addr] [-s size] usb <controller> | udp\n"
+#else
+	"[-l addr] [-s size] [usb] | udp\n"
+#endif
 	"\taddr - address of buffer used during data transfers ("
 	__stringify(CONFIG_FASTBOOT_BUF_ADDR) ")\n"
 	"\tsize - size of buffer used during data transfers ("
