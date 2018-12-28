@@ -31,7 +31,11 @@ else
 ifeq ($(H3_OPTION),4GB2x2)
     UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP2_2
 else
+ifeq ($(H3_OPTION),DYNAMIC)
     UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_AUTO
+else
+    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP4_1
+endif
 endif
 endif
 endif
