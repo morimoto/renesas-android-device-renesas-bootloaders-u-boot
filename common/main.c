@@ -48,6 +48,8 @@ void main_loop(void)
 		env_set("ver", version_string);  /* set version variable */
 
 	cli_init();
+	/* Set proper platform in environment */
+	rcar_preset_env();
 
 	if (IS_ENABLED(CONFIG_USE_PREBOOT))
 		run_preboot_environment_command();

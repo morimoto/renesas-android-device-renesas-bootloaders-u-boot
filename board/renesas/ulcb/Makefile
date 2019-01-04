@@ -11,3 +11,5 @@ obj-y	:= ../rcar-common/gen3-spl.o
 else
 obj-y	:= ulcb.o cpld.o ../rcar-common/common.o ../rcar-common/board_detect.o
 endif
+
+obj-y   := ../rcar-common/common.o
