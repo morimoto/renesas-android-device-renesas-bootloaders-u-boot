@@ -84,6 +84,9 @@ void set_default_env(const char *s, int flags)
 
 	gd->flags |= GD_FLG_ENV_READY;
 	gd->flags |= GD_FLG_ENV_DEFAULT;
+
+	/* Set proper platform in environment */
+	rcar_preset_env();
 }
 
 

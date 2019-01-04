@@ -213,6 +213,7 @@ static int oem_setenv(char * varval, char *response)
 			return -1;
 		}
 		/* Set proper platform in environment */
+		rcar_preset_env();
 		fastboot_okay(NULL, response);
 		return 0;
 	}

@@ -6,4 +6,4 @@
 # SPDX-License-Identifier: GPL-2.0+
 #
 
-obj-y	:= salvator-x.o ../rcar-common/board_detect.o
+obj-y	:= salvator-x.o ../rcar-common/board_detect.o ../rcar-common/common.o
