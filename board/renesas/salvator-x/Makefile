@@ -9,5 +9,7 @@
 ifdef CONFIG_SPL_BUILD
 obj-y	:= ../rcar-common/gen3-spl.o
 else
-obj-y	:= salvator-x.o ../rcar-common/common.o  ../rcar-common/board_detect.o
+obj-y	:= salvator-x.o ../rcar-common/board_detect.o
 endif
+
+obj-y   := ../rcar-common/common.o
