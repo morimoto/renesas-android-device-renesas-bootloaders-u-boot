@@ -62,3 +62,26 @@ void arch_preboot_os(void)
 				     mstptbl[i].r_ena);
 	}
 }
+
+void rcar_preset_env(void)
+{
+	u32 product = rmobile_get_cpu_type();
+	switch (product) {
+		case CPU_ID_R8A7795:
+			env_set("platform", "r8a7795");
+			break;
+		case CPU_ID_R8A7796:
+			env_set("platform", "r8a7796");
+			break;
+		case CPU_ID_R8A77965:
+			env_set("platform", "r8a77965");
+			break;
+		case CPU_ID_R8A77990:
+			env_set("platform", "r8a77990");
+			break;
+		case CPU_ID_R8A77995:
+			env_set("platform", "r8a77995");
+			break;
+	}
+	return;
+}

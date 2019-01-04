@@ -91,4 +91,8 @@
  */
 #define BOOTLOADER_BLK_SIZE			(4096)
 
+#ifndef __ASSEMBLY__
+void rcar_preset_env(void);
+#endif
+
 #endif	/* __RCAR_GEN3_COMMON_H */

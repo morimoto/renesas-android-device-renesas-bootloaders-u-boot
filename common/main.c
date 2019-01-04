@@ -49,6 +49,8 @@ void main_loop(void)
 #endif /* CONFIG_VERSION_VARIABLE */
 
 	cli_init();
+	/* Set proper platform in environment */
+	rcar_preset_env();
 
 	run_preboot_environment_command();
 
