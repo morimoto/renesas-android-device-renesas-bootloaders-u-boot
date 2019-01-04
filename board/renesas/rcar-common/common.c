@@ -8,6 +8,7 @@
  */
 
 #include <common.h>
+#include <malloc.h>
 #include <dm.h>
 #include <dm/uclass-internal.h>
 #include <asm/arch/rmobile.h>
