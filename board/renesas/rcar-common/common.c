@@ -8,6 +8,7 @@
  */
 
 #include <common.h>
+#include <malloc.h>
 #include <asm/io.h>
 #include <asm/arch/sys_proto.h>
 #include <asm/arch/rmobile.h>
@@ -16,6 +17,9 @@
 #define TSTR0		0x04
 #define TSTR0_STR0	0x01
 
+#if !defined(CONFIG_R8A7795) && \
+	!defined(CONFIG_R8A7796) && \
+		!defined(CONFIG_R8A77965)
 static struct mstp_ctl mstptbl[] = {
 	{ SMSTPCR0, MSTP0_BITS, CONFIG_SMSTP0_ENA,
 		RMSTPCR0, MSTP0_BITS, CONFIG_RMSTP0_ENA },
@@ -62,6 +66,7 @@ void arch_preboot_os(void)
 				     mstptbl[i].r_ena);
 	}
 }
+#endif
 
 void rcar_preset_env(void)
 {
