@@ -373,20 +373,24 @@ static void set_cpu_revision_args(void) {
 	free(newbootargs);
 }
 
-#define OTA_CRITICAL_PART "blkdevparts=mmcblk0boot0:4m(bootloader_a);" \
-		"mmcblk0boot1:4m(bootloader_b)"
-static void set_blkdevparts_args(void) {
+#define OTA_CRITICAL_PART "blkdevparts=mmcblk0boot0:%u(bootloader_a);" \
+		"mmcblk0boot1:%u(bootloader_b)"
+static void set_blkdevparts_args(void)
+{
 	char *bootargs = env_get("bootargs");
 	int len = 0;
 	int ipl_locked = 0;
+	char buf[128];
+	uint32_t bl_size = get_bootloader_size();
 	if (bootargs)
 		len += strlen(bootargs);
 	if (!fastboot_get_lock_status(NULL, &ipl_locked)) {
 		if (!ipl_locked) {
-			len += strlen(OTA_CRITICAL_PART) + 2;
+			sprintf(buf, OTA_CRITICAL_PART, bl_size, bl_size);
+			len += strlen(buf) + 2;
 			char *newbootargs = malloc(len);
 			if (newbootargs) {
-				snprintf(newbootargs, len, OTA_CRITICAL_PART" %s", bootargs);
+				snprintf(newbootargs, len, "%s %s", buf, bootargs);
 				env_set("bootargs", newbootargs);
 			} else {
 				puts("Error: malloc in set_blkdevparts_args failed!\n");

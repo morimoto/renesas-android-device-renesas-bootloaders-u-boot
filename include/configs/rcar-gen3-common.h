@@ -74,17 +74,11 @@
 #define I2C_POWERIC_EEPROM_OFFSET	0x70
 #define I2C_POWERIC_EEPROM_ADDR		0x50
 
-/*
- * This define is specify the bootloader partition size
- * in mmcblk0boot0/1.
- * 8192 blocks = 4Mb
- */
-#define BOOTLOADER_BLK_SIZE			(8192)
-
 #ifndef __ASSEMBLY__
 void rcar_preset_env(void);
 void init_noreset_vars(void);
 void restore_noreset_vars(void);
+unsigned get_bootloader_size(void);
 #endif
 
 #endif	/* __RCAR_GEN3_COMMON_H */

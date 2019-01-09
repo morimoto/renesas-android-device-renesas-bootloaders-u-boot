@@ -13,6 +13,7 @@
 #include <asm/arch/sys_proto.h>
 #include <asm/arch/rmobile.h>
 #include <asm/arch/rcar-mstp.h>
+#include <mmc.h>
 
 #define TSTR0		0x04
 #define TSTR0_STR0	0x01
@@ -140,4 +141,53 @@ void restore_noreset_vars(void) {
 
 	for (; i < n; ++i)
 		env_set(env_pairs[i].var_name, env_pairs[i].value);
+}
+
+static unsigned get_boot_part_free_space(void)
+{
+	struct mmc *mmc = find_mmc_device(CONFIG_FASTBOOT_FLASH_MMC_DEV);
+	return mmc->capacity_boot - CONFIG_ENV_SIZE;
+}
+
+/*
+ * The bootloader size can be changed in runtime
+ * by setting value in variable @ipl_image_size.
+ * If this environment variable is not set or
+ * value bigger than avaliable free memory in
+ * boot partition or less than @CONFIG_DEFAULT_IPL_IMAGE_SIZE,
+ * then it will use @CONFIG_DEFAULT_IPL_IMAGE_SIZE.
+ */
+unsigned get_bootloader_size(void)
+{
+	const char *bl_size_env = "ipl_image_size";
+	const char *bl_size_val = NULL;
+	unsigned bootloader_size = 0;
+	unsigned free_space = get_boot_part_free_space();
+
+	if (free_space < CONFIG_DEFAULT_IPL_IMAGE_SIZE) {
+		printf("The CONFIG_DEFAULT_IPL_IMAGE_SIZE (%d) is bigger than avaliable "
+			"free space. Using all avaliable space (%d)\n",
+			CONFIG_DEFAULT_IPL_IMAGE_SIZE, free_space);
+		return free_space;
+	}
+
+	bl_size_val = env_get(bl_size_env);
+	if (!bl_size_val)
+		return CONFIG_DEFAULT_IPL_IMAGE_SIZE;
+
+	bootloader_size = strtoul(bl_size_val, NULL, 16);
+
+	if (bootloader_size < CONFIG_DEFAULT_IPL_IMAGE_SIZE) {
+		printf("Too small value (%d) for bootloader partition, using default value (%d)\n",
+			bootloader_size, CONFIG_DEFAULT_IPL_IMAGE_SIZE);
+		return CONFIG_DEFAULT_IPL_IMAGE_SIZE;
+	}
+
+	if (bootloader_size > free_space) {
+		printf("The %d is bigger than available free space in boot hw part. "
+			"Using all avaliable space (%d)\n", bootloader_size, free_space);
+		return free_space;
+	}
+
+	return bootloader_size;
 }
