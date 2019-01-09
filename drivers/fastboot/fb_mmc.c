@@ -328,6 +328,7 @@ int fastboot_mmc_get_part_info(const char *part_name,
 
 	return r;
 }
+
 static void fb_handle_bootloader_flashing(void *download_buffer,
 			unsigned int download_bytes, char *response)
 {
@@ -341,7 +342,7 @@ static void fb_handle_bootloader_flashing(void *download_buffer,
 	struct blk_desc *dev_desc;
 	int ret;
 
-	if (write_blocks > BOOTLOADER_BLK_SIZE) {
+	if (download_bytes > get_bootloader_size()) {
 		pr_err("too large for partition: 'bootloader%s'\n", slot_suffix);
 		fastboot_fail("too large for partition", response);
 		return;

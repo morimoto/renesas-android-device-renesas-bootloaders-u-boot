@@ -20,4 +20,11 @@ bool "Enter fastboot by SW3"
 	  Allows to enter at fastboot mode while
 	  holding down SW3 button
 
+config DEFAULT_IPL_IMAGE_SIZE
+int "Default IPL image size"
+	default 4194304
+	depends on R8A7795 || R8A7796
+	help
+	  Defines the default IPL image size
+
 endif
