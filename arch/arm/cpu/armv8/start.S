@@ -60,8 +60,13 @@ _arg0:
 _arg1:
 	.dword	0
 
+.globl	_arg2
+_arg2:
+	.dword	0
+
 p_arg0 : .quad _arg0
 p_arg1 : .quad _arg1
+p_arg2 : .quad _arg2
 
 reset:
 	/* ---------------------------------------------------------------
@@ -73,7 +78,8 @@ reset:
 	ldr	x21, p_arg1
 	str	x0, [x20]
 	str	x1, [x21]
-
+	ldr	x20, p_arg2
+	str	x2, [x20]
 	/* Allow the board to save important registers */
 	b	save_boot_params
 .globl	save_boot_params_ret
