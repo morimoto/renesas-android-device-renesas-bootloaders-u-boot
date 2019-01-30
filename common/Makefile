@@ -125,3 +125,4 @@ obj-y += s_record.o
 obj-y += xyzModem.o
 
 obj-$(CONFIG_AVB_VERIFY) += avb_verify.o
+obj-y += device-tree-common.o
