@@ -18,6 +18,9 @@
  */
 static bool check_fdt_header(const struct dt_table_header *dt_tbl)
 {
+	if (!dt_tbl)
+		return false;
+
 	if (cpu_to_fdt32(dt_tbl->magic) != DT_TABLE_MAGIC) {
 		printf("ERROR: Invalid FDT table found at 0x%lx (0x%lx)\n",
 			(ulong)dt_tbl, (ulong)cpu_to_fdt32(dt_tbl->magic));
@@ -122,6 +125,7 @@ ulong get_current_plat_id(void)
  */
 static uint32_t get_overlay_order(ulong *overlay_order, uint32_t max_size)
 {
+	ulong overlay_idx = 0;
 	uint32_t overlay_count = 0;
 	const char *cmd_parameter = "androidboot.dtbo_idx";
 	const char *bootargs = env_get("bootargs");
@@ -146,58 +150,38 @@ static uint32_t get_overlay_order(ulong *overlay_order, uint32_t max_size)
 	iter++;
 
 	while (iter[0] >= '0' && iter[0] <= '9') {
-		overlay_order[overlay_count] = ustrtoul(iter, &iter, 10);
+		overlay_idx = ustrtoul(iter, &iter, 10);
+		if (overlay_idx >= max_size) {
+			printf("Invalid overlay index (%lu)\n", overlay_idx);
+			break;
+		}
+		overlay_order[overlay_count] = overlay_idx;
 		overlay_count++;
 		if (!iter || iter[0] != ',' || (overlay_count >= max_size))
 			break;
 		iter++;
 	}
 
-	if (!overlay_count)
-		printf("Invalid idx from \"androidboot.dtbo_idx\" parameter\n");
-
 	return overlay_count;
 }
 
 /*
- * Finds dt_table_entry from loaded DT table and returns a pointer
+ * Finds dt_table_entry from loaded DT info and returns a pointer
  * to it. If an entry isn't found or DT table is incorrect returns
- * NULL. @dt_num - start index of device tree in the table.
- * After finding the appropriative device tree with given @plat_id,
- * @dt_num will be changed to the index of found dt.
+ * NULL.
+ * Parameters:
+ * @info - array, which contains info about dt\dto partition
+ * @size - amount of elements in @info array
+ * @plat_id - current platform id
  */
-static struct dt_table_entry *find_fdt_from_table(const struct dt_table_header *dt_tbl,
-							const ulong plat_id, ulong *dt_num)
+static struct dt_table_entry *get_fdt_by_plat_id(struct device_tree_info *info,
+							int size, ulong plat_id)
 {
 	int i = 0;
 
-	if (!check_fdt_header(dt_tbl))
-		return NULL;
-
-	ulong dt_entry_count = cpu_to_fdt32(dt_tbl->dt_entry_count);
-	ulong dt_entries_offset = cpu_to_fdt32(dt_tbl->dt_entries_offset);
-
-	struct dt_table_entry *dt_entry =
-		(struct dt_table_entry *)(((uchar *)dt_tbl) + dt_entries_offset);
-
-	if (dt_num) {
-		dt_entry += (*dt_num);
-		i = (*dt_num);
-	} else {
-		i = 0;
-	}
-
-	while (i < dt_entry_count) {
-		ulong dt_id = cpu_to_fdt32(dt_entry->id);
-
-		if (dt_id == plat_id || dt_id == RCAR_GENERIC_PLAT_ID) {
-			if (dt_num)
-				*dt_num = i;
-			return dt_entry;
-		}
-		i++;
-		dt_entry++;
-	}
+	for (i = 0; i < size; ++i)
+		if (cpu_to_fdt32(info[i].entry->id) == plat_id)
+			return info[i].entry;
 
 	return NULL;
 }
@@ -206,22 +190,16 @@ static struct dt_table_entry *find_fdt_from_table(const struct dt_table_header *
  * Function returns the maximum possible size of overlaid device tree blob.
  */
 static ulong calculate_max_dt_size(struct dt_table_entry *base_dt_entry,
-					struct dt_table_header *dto_tbl,
+					struct device_tree_info *info,
 					ulong *overlay_order, uint32_t overlay_num)
 {
 	uint32_t i = 0;
 	ulong dt_num = 0;
-	struct dt_table_entry *overlay_dt_entry = NULL;
 	ulong size = cpu_to_fdt32(base_dt_entry->dt_size);
-	ulong base_plat_id = cpu_to_fdt32(base_dt_entry->id);
 
 	for (i = 0; i < overlay_num; ++i) {
 		dt_num = overlay_order[i];
-		overlay_dt_entry = find_fdt_from_table(dto_tbl, base_plat_id, &dt_num);
-		if (!overlay_dt_entry)
-			continue;
-
-		size += cpu_to_fdt32(overlay_dt_entry->dt_size);
+		size += cpu_to_fdt32(info[dt_num].entry->dt_size);
 	}
 
 	return size;
@@ -257,28 +235,29 @@ static ulong calculate_max_dt_size(struct dt_table_entry *base_dt_entry,
  * Parameters:
  * @load_addr - address, where will be stored overlaid device tree
  * @base_dt_entry - pointer to base device tree entry from fdt (dtb partition)
- * @dto_tbl - pointer to start of packed device tree overlay table (dtbo partition)
+ * @dt_overlays - pointer to structure @dt_overlays, which contains info about
+ * dtbo partition
  * @plat_id - platform id, got from @get_current_plat_id function.
  */
 static ulong apply_all_overlays(struct fdt_header *load_addr,
 				struct dt_table_entry *base_dt_entry,
-				struct dt_table_header *dto_tbl,
+				struct dt_overlays *overlays,
 				ulong plat_id) {
 	ulong dt_num = 0;
+	ulong overlay_id = 0;
 	ulong overlay_count = 0;
 	struct fdt_header *result_dt_buf = NULL;
 	struct fdt_header *overlay_buf = NULL;
 	ulong max_dt_size = 0;
 	struct dt_table_entry *overlay_dt_entry = NULL;
-	const uint32_t max_overlays_num = cpu_to_fdt32(dto_tbl->dt_entry_count);
-	ulong overlay_order[max_overlays_num];
+	ulong overlay_order[overlays->size];
 	uint32_t overlay_num =
-		get_overlay_order(&overlay_order[0], max_overlays_num);
+		get_overlay_order(&overlay_order[0], overlays->size);
 
 	if (!overlay_num)
 		return overlay_count;
 
-	max_dt_size = calculate_max_dt_size(base_dt_entry, dto_tbl,
+	max_dt_size = calculate_max_dt_size(base_dt_entry, overlays->info,
 				&overlay_order[0], overlay_num);
 	result_dt_buf = (struct fdt_header *)malloc(max_dt_size);
 	if (!result_dt_buf) {
@@ -296,14 +275,22 @@ static ulong apply_all_overlays(struct fdt_header *load_addr,
 
 	while (overlay_count < overlay_num) {
 		dt_num = overlay_order[overlay_count];
-		overlay_dt_entry = find_fdt_from_table(dto_tbl, plat_id, &dt_num);
-		if (!overlay_dt_entry) {
-			printf("Overlay with idx = %lu is not for [0x%lx] platform\n",
-					overlay_order[overlay_count], plat_id);
+		if (dt_num > overlays->size) {
+			printf("Error: overlay index (%lu) is invalid\n", dt_num);
 			break;
 		}
 
-		load_dt_at_addr(overlay_buf, overlay_dt_entry, dto_tbl);
+		overlay_id = cpu_to_fdt32(overlays->info[dt_num].entry->id);
+
+		if (overlay_id != plat_id && overlay_id != RCAR_GENERIC_PLAT_ID) {
+			printf("Overlay with idx = %lu is not for [0x%lx] platform\n",
+					dt_num, plat_id);
+			break;
+		}
+
+		overlay_dt_entry = overlays->info[dt_num].entry;
+
+		load_dt_at_addr(overlay_buf, overlay_dt_entry, overlays->dt_header);
 		if (fdt_open_into(result_dt_buf, result_dt_buf,
 			fdt_totalsize(result_dt_buf) + fdt_totalsize(overlay_buf))) {
 			printf("ERROR, due to resizing device tree\n");
@@ -328,31 +315,43 @@ free_result_buf:
 	return overlay_count;
 }
 
-static char *assemble_dtbo_idx_string(int indx[], size_t size)
+static char *assemble_dtbo_idx_string(struct dt_overlays *overlays)
 {
 	const char *dtbo_str = "androidboot.dtbo_idx=";
-	const size_t buf_size = 3 * strlen(dtbo_str) + 1;
+	/*
+	 * The size is equal length of base arg str (@dtbo_str) and
+	 * 3 characters for every dtbo idx (2 numbers and comma).
+	 */
+	const size_t buf_size = overlays->size * 3 + strlen(dtbo_str);
 	int i = 0;
 
-	if (size==0)
+	if (!overlays->applied_cnt)
 		return NULL;
 
 	char *newstr = malloc(buf_size);
 	if (!newstr) {
-		pr_err("Can't allocate memory\n");
+		printf("Can't allocate memory\n");
 		return NULL;
 	}
+
 	strcpy(newstr, dtbo_str);
 
-	while(i < size && (buf_size - strlen(dtbo_str)) > 4){
-		sprintf(newstr, "%s%d%s", newstr, indx[i], i == (size - 1) ? "" : ",");
+	while (i < overlays->applied_cnt) {
+		if (overlays->info[overlays->order_idx[i]].idx >= MAX_OVERLAYS) {
+			printf("Error, the dtbo index should be less than %d\n",
+				MAX_OVERLAYS);
+			free(newstr);
+			return NULL;
+		}
+		sprintf(newstr, "%s%d%s", newstr, overlays->info[overlays->order_idx[i]].idx,
+			i == (overlays->applied_cnt - 1) ? "" : ",");
 		++i;
 	}
 
 	return newstr;
 }
 
-static void add_dtbo_index(int indx[], size_t size)
+static void add_dtbo_index(struct dt_overlays *overlays)
 {
 	int len = 0;
 	char *next, *param, *value;
@@ -368,10 +367,10 @@ static void add_dtbo_index(int indx[], size_t size)
 #endif
 
 	if (!bootargs) {
-		value = assemble_dtbo_idx_string(indx, size);
-		if (!value) {
+		value = assemble_dtbo_idx_string(overlays);
+		if (!value)
 			return;
-		}
+
 		env_set("bootargs", value);
 		free(value);
 		return;
@@ -380,13 +379,13 @@ static void add_dtbo_index(int indx[], size_t size)
 	len = strlen(bootargs);
 	char *copy_bootargs = malloc(len + 1);
 	if (!copy_bootargs) {
-		pr_err("Can't allocate memory\n");
+		printf("Can't allocate memory\n");
 		return;
 	}
 
 	char *new_bootargs = malloc(cmdline_size);
 	if (!new_bootargs) {
-		pr_err("Can't allocate memory\n");
+		printf("Can't allocate memory\n");
 		goto add_dtbo_index_exit1;
 	}
 
@@ -412,7 +411,7 @@ static void add_dtbo_index(int indx[], size_t size)
 	}
 
 	if (!dtbo_vals) {
-		dtbo_vals = assemble_dtbo_idx_string(indx, size);
+		dtbo_vals = assemble_dtbo_idx_string(overlays);
 		if (!dtbo_vals) {
 			goto add_dtbo_index_exit2;
 		}
@@ -420,7 +419,7 @@ static void add_dtbo_index(int indx[], size_t size)
 		env_set("bootargs", new_bootargs);
 		free(dtbo_vals);
 	} else {
-		value = assemble_dtbo_idx_string(indx, size);
+		value = assemble_dtbo_idx_string(overlays);
 		if (!value) {
 			goto add_dtbo_index_exit2;
 		}
@@ -436,62 +435,293 @@ add_dtbo_index_exit1:
 	return;
 }
 
-int load_dt_with_overlays(struct fdt_header *load_addr,
-				struct dt_table_header *dt_tbl,
-				struct dt_table_header *dto_tbl)
+void free_dt_info(struct device_tree_info *info, int num)
 {
-	int dmbo_indx[] = {0, 0, 0, 0, 0, 0, 0, 0};
-	size_t dmbo_count = 0;
-	ulong applied_overlays = 0;
-	ulong plat_id = get_current_plat_id();
-	struct dt_table_entry *base_dt_entry =
-		find_fdt_from_table(dt_tbl, plat_id, NULL);
+	int i = 0;
 
-	if (!base_dt_entry) {
-		printf("ERROR: No proper FDT entry found for current platform id=%lx\n", plat_id);
-		return -1;
+	if (!info)
+		return;
+
+	for (i = 0; i < num; ++i)
+		free(info[i].name);
+
+	free(info);
+}
+/*
+ * Returns index of overlay with given @name.
+ * If overlay with this @name is not found, returns
+ * negative value.
+ */
+static int find_overlay_by_name(const struct dt_overlays *overlays,
+	const char *name)
+{
+	bool is_found = false;
+	int i = 0;
+
+	for (i = 0; i < overlays->size; ++i) {
+		if (!strncmp(name, overlays->info[i].name, strlen(overlays->info[i].name))) {
+			is_found = true;
+			break;
+		}
 	}
+
+	if (!is_found)
+		i = -1;
+
+	return i;
+}
+
+/*
+ * Parse @dtbo_names variable and detects which overlays
+ * should be applied.
+ */
+static void add_user_overlays(struct dt_overlays *overlays)
+{
+	int idx = 0;
+	const char *env_var = "dtbo_names";
+	char *env_val = env_get(env_var);
+	char *pchr = NULL;
+	char *env_val_dup = NULL;
+	const int custom_fields_len = 4;
+	/* 3 separators between 4 custom uint32_t fields */
+	const int max_name_len = custom_fields_len * sizeof(int) + 3;
+
+	if (!env_val)
+		return;
+
+	env_val_dup = strdup(env_val);
+	if (!env_val_dup) {
+		printf("Error - not enough memory for duplicate environment value\n");
+		return;
+	}
+
+	pchr = strtok(env_val_dup, " ,");
+	do {
+		if (strlen(pchr) > max_name_len) {
+			printf("Error - overlay name length should be less than %d chars\n", max_name_len);
+			pchr = strtok(NULL, " ,");
+			continue;
+		}
+
+		idx = find_overlay_by_name(overlays, pchr);
+
+		if (idx < 0) {
+			printf("Overlay %s is not found\n", pchr);
+		} else {
+			overlays->order_idx[overlays->applied_cnt] = overlays->info[idx].idx;
+			overlays->applied_cnt++;
+		}
+
+		pchr = strtok(NULL, " ,");
+	} while (pchr);
+
+	free(env_val_dup);
+}
+
+static void add_default_overlays(struct dt_overlays *overlays)
+{
+	int i = 0;
+	int idx = 0;
+	int default_dtbo_count = 0;
+	const char *default_dtbo[MAX_DEFAULT_OVERLAYS];
+	 __attribute__((unused)) uint32_t plat_id = get_current_plat_id();
 
 #if defined(CONFIG_R8A7795)
 #if defined(RCAR_DRAM_AUTO)
 	if (_arg1 == 8) {
 		if (plat_id == H3v3_PLAT_ID) {
-			dmbo_indx[0] = V3_PLATID_DTBO_NUM;
-			dmbo_indx[1] = V3_INFO_DTBO_NUM;
-			dmbo_count = 2;
+			default_dtbo[0] = V3_PLATID_DTBO_NAME;
+			default_dtbo[1] = V3_INFO_DTBO_NAME;
+			default_dtbo_count = 2;
 		} else if (plat_id == H3v2_PLAT_ID) {
-			dmbo_indx[0] = V2_PLATID_DTBO_NUM;
-			dmbo_indx[1] = V2_INFO_DTBO_NUM;
-			dmbo_count = 2;
+			default_dtbo[0] = V2_PLATID_DTBO_NAME;
+			default_dtbo[1] = V2_INFO_DTBO_NAME;
+			default_dtbo_count = 2;
 		}
 	}
 #elif defined(RCAR_DRAM_MAP4_2)
 	if (plat_id == H3v3_PLAT_ID) {
-		dmbo_indx[0] = V3_PLATID_DTBO_NUM;
-		dmbo_indx[1] = V3_INFO_DTBO_NUM;
-		dmbo_count = 2;
+		default_dtbo[0] = V3_PLATID_DTBO_NAME;
+		default_dtbo[1] = V3_INFO_DTBO_NAME;
+		default_dtbo_count = 2;
 	} else if (plat_id == H3v2_PLAT_ID) {
-		dmbo_indx[0] = V2_PLATID_DTBO_NUM;
-		dmbo_indx[1] = V2_INFO_DTBO_NUM;
-		dmbo_count = 2;
+		default_dtbo[0] = V2_PLATID_DTBO_NAME;
+		default_dtbo[1] = V2_INFO_DTBO_NAME;
+		default_dtbo_count = 2;
 	}
 #endif /* defined(RCAR_DRAM_AUTO) */
 #endif /* defined(CONFIG_R8A7795) */
 
 #if defined(ENABLE_ADSP)
-	dmbo_indx[dmbo_count] = ADSP_DTBO_NUM;
-	++dmbo_count;
+#if defined(CONFIG_TARGET_ULCB)
+	default_dtbo[default_dtbo_count] = ADSP_SKKF_DTBO_NAME;
+	++default_dtbo_count;
+#endif /* CONFIG_TARGET_ULCB */
+#if defined(CONFIG_TARGET_SALVATOR_X)
+	default_dtbo[default_dtbo_count] = ADSP_SALV_DTBO_NAME;
+	++default_dtbo_count;
+#endif /* CONFIG_TARGET_SALVATOR_X */
 #endif /* defined(ENABLE_ADSP) */
 
 #if defined(ENABLE_PRODUCT_PART)
-	dmbo_indx[dmbo_count] = PARTITIONS_DTBO_NUM;
-	++dmbo_count;
+	default_dtbo[default_dtbo_count] = PARTITIONS_DTBO_NAME;
+	++default_dtbo_count;
 #endif /* defined(ENABLE_PRODUCT_PART) */
 
-	dmbo_indx[dmbo_count] = LVDS_PANEL_DTBO_NUM;
-	++dmbo_count;
+	/* There is no additional overlays */
+	if (!default_dtbo_count)
+		return;
 
-	add_dtbo_index(dmbo_indx, dmbo_count);
+	for (i = 0; i < default_dtbo_count; ++i) {
+
+		idx = find_overlay_by_name(overlays, default_dtbo[i]);
+
+		if (idx < 0) {
+			printf("Overlay %s is not found\n", default_dtbo[i]);
+		} else {
+			overlays->order_idx[overlays->applied_cnt] = overlays->info[idx].idx;
+			overlays->applied_cnt++;
+		}
+	}
+}
+
+/*
+ * Converts 4 uint32_t custom fields from @dt_table_entry
+ * structure to string. The parts are separeted via hyphen.
+ * Example:
+ * --custom0=0x736b6b66 --custom1=0x34783267 --custom2=0x33300000
+ * will converted to string:
+ * skkf-4x2g-30
+ * Parameter:
+ * @custom - pointer to uint32_t array with size 4
+ */
+static char *custom_to_str(uint32_t *custom)
+{
+	int j = 0;
+	char *name = NULL;
+	const int custom_fields_len = 4;
+	const int char_per_field = sizeof(uint32_t) + 1;
+	/* 3 separators between 4 custom uint32_t fields */
+	const int max_name_len = custom_fields_len * sizeof(int) + 3;
+
+	name = (char *)malloc(max_name_len + 1);
+	if (!name) {
+		printf("Failed to allocate memory for string \n");
+		return NULL;
+	}
+
+	memset(name, 0, max_name_len + 1);
+
+	j = 0;
+	while (j < custom_fields_len && custom[j]) {
+		memcpy(&name[j * char_per_field], &custom[j], sizeof(custom[j]));
+		name[j * char_per_field + sizeof(custom[j])] = '-';
+		j++;
+	}
+
+	if (j)
+		name[(j - 1) * char_per_field + sizeof(custom[j])] = '\0';
+
+	return name;
+}
+
+/*
+ * Allocate memory for @device_tree_info struct and fills it with
+ * information about device-tree based on @dt_tbl parameter.
+ * The @size will chenged and will equal to amount of @dt_entry.
+ * Parameters:
+ * @dt_tbl - pointer to device tree table structure
+ * @size - pointer to variable, where will be amount of @dt_entry
+ */
+struct device_tree_info *get_dt_info(struct dt_table_header *dt_tbl, int *size)
+{
+	int i = 0;
+	ulong dt_entries_offset = 0;
+	struct device_tree_info *info = NULL;
+	struct dt_table_entry *dt_entry = NULL;
+
+	if (!check_fdt_header(dt_tbl))
+		return NULL;
+
+	(*size) = cpu_to_fdt32(dt_tbl->dt_entry_count);
+	dt_entries_offset = cpu_to_fdt32(dt_tbl->dt_entries_offset);
+	dt_entry = (struct dt_table_entry *)(((uchar *)dt_tbl) + dt_entries_offset);
+
+	info = (struct device_tree_info *)malloc(sizeof(*info) * (*size));
+	if (!info) {
+		printf("ERROR: can't allocate memory for overlay info struct\n");
+		return NULL;
+	}
+
+	for (i = 0; i < (*size); ++i) {
+		info[i].idx = i;
+		info[i].entry = dt_entry;
+		info[i].name = custom_to_str(&dt_entry->custom[0]);
+		dt_entry++;
+	}
+
+	return info;
+}
+
+static struct dt_overlays *init_dt_overlays(struct device_tree_info *dt_info,
+					struct dt_table_header *dt_tbl, int size)
+{
+	struct dt_overlays *overlays = NULL;
+
+	if (!dt_info)
+		return NULL;
+
+	overlays = (struct dt_overlays *)malloc(sizeof(*overlays));
+	if (!overlays) {
+		printf("Failed to allocate memory for dt_overlays\n");
+		return NULL;
+	}
+
+	overlays->size = size;
+	overlays->order_idx = (int *)malloc(sizeof(int) * overlays->size);
+	if (!overlays->order_idx) {
+		printf("Failed to allocate memory for saving overlays order\n");
+		free(overlays);
+		return NULL;
+	}
+
+	overlays->info = dt_info;
+	overlays->dt_header = dt_tbl;
+	overlays->applied_cnt = 0;
+
+	return overlays;
+}
+
+static void free_dt_overlays(struct dt_overlays *overlays)
+{
+	if (!overlays)
+		return;
+
+	if (overlays->size)
+		free(overlays->order_idx);
+
+	free_dt_info(overlays->info, overlays->size);
+	free(overlays);
+}
+
+int load_dt_with_overlays(struct fdt_header *load_addr,
+				struct dt_table_header *dt_tbl,
+				struct dt_table_header *dto_tbl)
+{
+	int dt_size = 0;
+	int dto_size = 0;
+	ulong applied_overlays = 0;
+	struct device_tree_info *dt_info = get_dt_info(dt_tbl, &dt_size);
+	struct device_tree_info *dto_info = get_dt_info(dto_tbl, &dto_size);
+	struct dt_overlays *overlays = init_dt_overlays(dto_info, dto_tbl, dto_size);
+	ulong plat_id = get_current_plat_id();
+	struct dt_table_entry *base_dt_entry =
+		get_fdt_by_plat_id(dt_info, dt_size, plat_id);
+
+	if (!base_dt_entry) {
+		printf("ERROR: No proper FDT entry found for current platform id=%lx\n", plat_id);
+		return -1;
+	}
 
 	/* Base device tree should be loaded in defined address */
 	load_dt_at_addr(load_addr, base_dt_entry, dt_tbl);
@@ -505,48 +735,53 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 		return 0;
 	}
 
+	add_default_overlays(overlays);
+	add_user_overlays(overlays);
+	add_dtbo_index(overlays);
+
 	applied_overlays = apply_all_overlays(load_addr, base_dt_entry,
-		dto_tbl, plat_id);
+		overlays, plat_id);
 
 	printf("Applied %ld overlay(s)\n", applied_overlays);
+
+	free_dt_overlays(overlays);
+	free_dt_info(dt_info, dt_size);
 
 	return 0;
 }
 
-void *load_dt_table_from_part(struct blk_desc *dev_desc, const char *dtbo_part_name)
+void *load_dt_table_from_part(struct blk_desc *dev_desc, const char *dtb_part_name)
 {
-	void *fdt_overlay_addr;
-	disk_partition_t info;
-	ulong size, fdt_overlay_offset;
 	int ret;
+	ulong size;
+	ulong fdt_offset;
+	void *fdt_addr;
+	disk_partition_t info;
 
-	ret = part_get_info_by_name(dev_desc, dtbo_part_name, &info);
+	ret = part_get_info_by_name(dev_desc, dtb_part_name, &info);
 	if (ret < 0) {
-		printf("ERROR: Can't read '%s' part\n", dtbo_part_name);
+		printf("ERROR: Can't read '%s' part\n", dtb_part_name);
 		return NULL;
 	}
 
 	size = info.blksz * info.size;
-	fdt_overlay_addr = malloc(size);
-	fdt_overlay_offset = info.start;
+	fdt_addr = malloc(size);
+	fdt_offset = info.start;
 
-	if (fdt_overlay_addr == NULL) {
-		printf("ERROR: Failed to allocate %lu bytes for FDT overlay\n", size);
+	if (!fdt_addr) {
+		printf("ERROR: Failed to allocate %lu bytes for FDT\n", size);
 		return NULL;
 	}
 
 	/* Convert size to blocks */
 	size /= info.blksz;
 
-	printf("%s: fdt overlay block offset = 0x%lx, size = %lu address = 0x%p\n",
-		dtbo_part_name, fdt_overlay_offset, size, fdt_overlay_addr);
-
-	ret = blk_dread(dev_desc, fdt_overlay_offset,
-						size, fdt_overlay_addr);
+	ret = blk_dread(dev_desc, fdt_offset,
+		size, fdt_addr);
 	if (ret != size) {
-		printf("ERROR: Can't read '%s' part\n", dtbo_part_name);
+		printf("ERROR: Can't read '%s' part\n", dtb_part_name);
 		return NULL;
 	}
 
-	return fdt_overlay_addr;
+	return fdt_addr;
 }
