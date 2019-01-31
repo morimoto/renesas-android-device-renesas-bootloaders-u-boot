@@ -27,4 +27,11 @@ int "Default IPL image size"
 	help
 	  Defines the default IPL image size
 
+config CMD_DTBOINFO
+bool "Get information about dtbo"
+	default y
+	depends on R8A7795 || R8A7796
+	help
+	  Get information about dtbo
+
 endif
