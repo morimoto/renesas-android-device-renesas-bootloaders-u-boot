@@ -58,8 +58,22 @@ struct bootloader_message {
     // stage string (for multistage packages) and possible future
     // expansion.
     char stage[32];
-    char slot_suffix[32];
-    char reserved[192];
+
+    // The 'reserved' field used to be 224 bytes when it was initially
+    // carved off from the 1024-byte recovery field. Bump it up to
+    // 1184-byte so that the entire bootloader_message struct rounds up
+    // to 2048-byte.
+    char reserved[1184];
+};
+
+/*
+ * Message written by Linux bootreason driver.
+ * Bootloader must parse it and append to Android bootargs.
+ * Note: sync structure with bootloader and bcb driver.
+ */
+struct bootreason_message {
+	char reason[128];
+	uint32_t crc;
 };
 
 /* Read and write the bootloader command from the "misc" partition.

@@ -20,6 +20,8 @@
 #include <malloc.h>
 #include <configs/rcar-gen3-common.h>
 #include <device-tree-common.h>
+#include <android/bootloader.h>
+#include <u-boot/crc.h>
 
 /*
  * Android Image booting support on R-Car Gen3 boards
@@ -137,6 +139,108 @@ static void set_blkdevparts_args(void)
 	}
 }
 
+/* Function adds 'androidboot.bootreason=xxxxx' to bootargs */
+static void set_bootreason_args(u32 addr) {
+	char *bootargs = env_get("bootargs");
+	int lenargs = 0;
+	char *bootreason_mem_buf = NULL;
+	const size_t REASON_MIN_LEN = 2;
+	const size_t REASON_MAX_LEN = 128;
+	bool bootreason_en = false;
+	char bootreason_args[REASON_MAX_LEN];
+
+	if (bootargs)
+		lenargs += strlen(bootargs);
+
+	/* First try to read from RAM (written by bootreason driver)
+	 * Try to parse rambootreason RAM address from DT
+	 */
+	struct fdt_header *fdt = map_sysmem(addr, 0);
+	int nodeoffset = fdt_path_offset(fdt,
+			"/reserved-memory/rambootreason");
+
+	if (nodeoffset > 0) {
+		fdt_addr_t addr = fdtdec_get_addr(fdt, nodeoffset, "reg");
+		if (addr != FDT_ADDR_T_NONE) {
+			bootreason_mem_buf =
+					(char *)map_sysmem(addr, 0);
+		}
+	}
+
+	if (bootreason_mem_buf) {
+		/* Got rambootreason buffer */
+		struct bootreason_message msg;
+		/* Copy bootreason struct */
+		memcpy(&msg, bootreason_mem_buf,
+				sizeof(struct bootreason_message));
+		/* Check crc32 */
+		if (crc32(0, (const unsigned char *)msg.reason,
+				sizeof(msg.reason)) == msg.crc) {
+			if (strlen(msg.reason) > REASON_MIN_LEN &&
+					strlen(msg.reason) < REASON_MAX_LEN) {
+				lenargs += REASON_MAX_LEN;
+				bootreason_en = true;
+				memset(bootreason_args, 0, sizeof(bootreason_args));
+				/* Add bootreason value */
+				snprintf(bootreason_args, REASON_MAX_LEN,
+						"androidboot.bootreason=%s", msg.reason);
+			}
+		}
+		/* Clear memory */
+		memset(bootreason_mem_buf, 0, sizeof(struct bootreason_message));
+	}
+
+	if (!bootreason_en) {
+		/* Then try to read from BCB (written by bcb driver) */
+		struct bootloader_message bcb;
+
+		if (get_bootloader_message(&bcb) == 0) {
+			/* Got BCB */
+			struct bootreason_message msg;
+			/* Copy bootreason struct */
+			memcpy(&msg, bcb.reserved, sizeof(struct bootreason_message));
+			/* Check crc32 */
+			if (crc32(0, (const unsigned char *)msg.reason,
+					sizeof(msg.reason)) == msg.crc) {
+				if (strlen(msg.reason) > REASON_MIN_LEN &&
+						strlen(msg.reason) < REASON_MAX_LEN) {
+					lenargs += REASON_MAX_LEN;
+					bootreason_en = true;
+					memset(bootreason_args, 0, sizeof(bootreason_args));
+					/* Add bootreason value */
+					snprintf(bootreason_args, REASON_MAX_LEN,
+							"androidboot.bootreason=%s", msg.reason);
+					/* Clear only 'reserved' part of bootloader message */
+					memset(&bcb.reserved, 0, sizeof(bcb.reserved));
+					set_bootloader_message(&bcb);
+				}
+			}
+		}
+	}
+
+	/* NOTE: no need to set 'androidboot.bootreason=unknown',
+	 * because Android 'bootstat' service will map this value auto
+	 * if boot reason is not present in command line */
+	if (!bootreason_en) {
+		lenargs += REASON_MAX_LEN;
+		bootreason_en = true;
+		memset(bootreason_args, 0, sizeof(bootreason_args));
+		/* Add bootreason value */
+		snprintf(bootreason_args, REASON_MAX_LEN, "androidboot.bootreason=%s",
+				"unknown");
+	}
+
+	if (bootreason_en) {
+		char *newbootargs = malloc(lenargs);
+		if (newbootargs) {
+			printf("Bootreason: %s\n", bootreason_args);
+			snprintf(newbootargs, lenargs, "%s %s", bootreason_args, bootargs);
+			env_set("bootargs", newbootargs);
+			free(newbootargs);
+		}
+	}
+}
+
 #define MMC_HEADER_SIZE 4 /*defnes header size in blocks*/
 int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 {
@@ -203,7 +307,12 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 		memcpy((void *)(u64)hdr->ramdisk_addr, (void *)ramdisk_offset, size);
 
 
-	return load_dt_with_overlays((struct fdt_header *)(u64)hdr->second_addr, dt_tbl, dto_tbl);
+	ret = load_dt_with_overlays((struct fdt_header *)(u64)hdr->second_addr, dt_tbl, dto_tbl);
+
+	if (!ret)
+		set_bootreason_args(hdr->second_addr);
+
+	return ret;
 }
 
 /*Defines maximum size for certificate + signed hash*/
