@@ -357,14 +357,13 @@ static void add_dtbo_index(struct dt_overlays *overlays)
 	char *next, *param, *value;
 	char *dtbo_vals = NULL, *dtbo_param = "androidboot.dtbo_idx";
 	char *bootargs = env_get("bootargs");
+	/*
+	 * The size is equal length of base arg str (@dtbo_param),
+	 * length of @bootargs and 3 characters for every dtbo idx
+	 * (2 numbers and comma).
+	 */
 	size_t cmdline_size =
-#if defined(CONFIG_KERNEL_CMDLINE_SIZE)
-			CONFIG_KERNEL_CMDLINE_SIZE;
-#elif defined(COMMAND_LINE_SIZE)
-			COMMAND_LINE_SIZE;
-#else
-			1024;
-#endif
+		overlays->size * 3 + strlen(dtbo_param);
 
 	if (!bootargs) {
 		value = assemble_dtbo_idx_string(overlays);
@@ -377,6 +376,8 @@ static void add_dtbo_index(struct dt_overlays *overlays)
 	}
 
 	len = strlen(bootargs);
+	/* Increase @buf_size size depending on the @bootargs length */
+	cmdline_size += len;
 	char *copy_bootargs = malloc(len + 1);
 	if (!copy_bootargs) {
 		printf("Can't allocate memory\n");
