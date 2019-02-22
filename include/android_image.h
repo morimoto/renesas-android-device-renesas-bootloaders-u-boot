@@ -51,6 +51,9 @@ struct andr_img_hdr {
 	/* Supplemental command line data; kept here to maintain
 	 * binary compatibility with older versions of mkbootimg */
 	char extra_cmdline[ANDR_BOOT_EXTRA_ARGS_SIZE];
+	u32 recovery_dtbo_size;   /* size of recovery dtbo image */
+	u64 recovery_dtbo_offset; /* offset in boot image */
+	u32 header_size;   /* size of boot image header in bytes */
 } __attribute__((packed));
 
 /*
