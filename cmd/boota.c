@@ -255,11 +255,12 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 	set_cpu_revision_args();
 	set_blkdevparts_args();
 
-	/*Image is in ram starting from address passed as boot parameter
-	  *This happens if image was loaded using fastboot or during verified
-	  *boot
-	  */
-	kernel_offset = hdr_addr + MMC_HEADER_SIZE * 512;
+	ret = android_image_get_kernel(hdr, 1, &kernel_offset, &size);
+	if (ret) {
+		printf("Error: can't extract kernel offset from "
+				"boot.img (%d)\n", ret);
+		return CMD_RET_FAILURE;
+	}
 	size = ALIGN(hdr->kernel_size, hdr->page_size);
 	dstn_size = size;
 
