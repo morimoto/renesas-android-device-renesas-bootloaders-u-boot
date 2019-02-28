@@ -24,7 +24,6 @@
 #define	V2_PLATID_DTBO_NAME		"skkf-4x2g-20"
 #define	V3_INFO_DTBO_NAME		"skkf-v3"
 #define	V2_INFO_DTBO_NAME		"skkf-v2"
-#define	ADSP_SKKF_DTBO_NAME		"skkf-adsp"
 #define H3v3_PLAT_ID			0x0b779530
 #define H3v2_PLAT_ID			0x0b779520
 #elif defined(CONFIG_TARGET_SALVATOR_X)
@@ -32,12 +31,17 @@
 #define	V2_PLATID_DTBO_NAME		"salv-4x2g-20"
 #define	V3_INFO_DTBO_NAME		"salv-v3"
 #define	V2_INFO_DTBO_NAME		"salv-v2"
-#define ADSP_SALV_DTBO_NAME		"salv-adsp"
 #define H3v3_PLAT_ID			0x04779530
 #define H3v2_PLAT_ID			0x04779520
 #endif
 #endif
 #define	PARTITIONS_DTBO_NAME	"rcar-part"
+
+#if defined(CONFIG_TARGET_ULCB)
+#define	ADSP_SKKF_DTBO_NAME		"skkf-adsp"
+#elif defined(CONFIG_TARGET_SALVATOR_X)
+#define ADSP_SALV_DTBO_NAME		"salv-adsp"
+#endif
 
 int load_dt_with_overlays(struct fdt_header *load_addr,
 				struct dt_table_header *dt_tbl,
