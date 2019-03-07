@@ -72,4 +72,6 @@ void board_quiesce_devices(void);
  */
 void switch_to_non_secure_mode(void);
 
+int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
+
 #endif
