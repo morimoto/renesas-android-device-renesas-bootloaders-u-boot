@@ -14,6 +14,7 @@
 #include <fastboot.h>
 #include <net/fastboot.h>
 #include <android/bootloader.h>
+#include <bootm.h>
 
 /**
  * fastboot_buf_addr - base address of the fastboot download buffer
@@ -125,16 +126,16 @@ void fastboot_boot(void)
 	if (s) {
 		run_command(s, CMD_FLAG_ENV);
 	} else {
-		static char boot_addr_start[12];
-		static char *const bootm_args[] = {
-			"bootm", boot_addr_start, NULL
+		static char boot_addr_start[19];
+		static char *const boota_args[] = {
+			"boota", "-1", "RAM", boot_addr_start, "avb", NULL
 		};
 
-		snprintf(boot_addr_start, sizeof(boot_addr_start) - 1,
+        snprintf(boot_addr_start, sizeof(boot_addr_start),
 			 "0x%p", fastboot_buf_addr);
-		printf("Booting kernel at %s...\n\n\n", boot_addr_start);
+        printf("Booting kernel at %s...\n\n\n", boot_addr_start);
 
-		do_bootm(NULL, 0, 2, bootm_args);
+        do_boota(NULL, 0, ARRAY_SIZE(boota_args) - 1, boota_args);
 
 		/*
 		 * This only happens if image is somehow faulty so we start
@@ -169,7 +170,7 @@ void fastboot_set_progress_callback(void (*progress)(const char *msg))
 void fastboot_init(void *buf_addr, u32 buf_size)
 {
 	fastboot_buf_addr = buf_addr ? buf_addr :
-				       (void *)CONFIG_FASTBOOT_BUF_ADDR;
+						(void *)CONFIG_FASTBOOT_BUF_ADDR;
 	fastboot_buf_size = buf_size ? buf_size : CONFIG_FASTBOOT_BUF_SIZE;
 	fastboot_set_progress_callback(NULL);
 }
