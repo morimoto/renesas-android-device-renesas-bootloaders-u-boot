@@ -428,17 +428,18 @@ static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
  * Sets corret boot address if image was loaded
 * using fastboot
 */
-#define DEFAULT_RD_ADDR 0x49100000
-#define DEFAULT_SECOND_ADDR 0x48000800
+#define DEFAULT_RD_ADDR		0x4a180000
+#define DEFAULT_SECOND_ADDR	0x48000800
 
 /*We need virtual device and partition to support fastboot boot command*/
-#define VIRT_BOOT_DEVICE "-1"
+#define VIRT_BOOT_DEVICE	"-1"
 #define VIRT_BOOT_PARTITION "RAM"
+#define VIRT_SYS_LOAD_ADDR	0x48080000
 
 void do_correct_boot_address(ulong hdr_addr)
 {
 	struct andr_img_hdr *hdr = map_sysmem(hdr_addr, 0);
-	hdr->kernel_addr = CONFIG_SYS_LOAD_ADDR;
+	hdr->kernel_addr = VIRT_SYS_LOAD_ADDR;
 	hdr->ramdisk_addr = DEFAULT_RD_ADDR;
 	hdr->second_addr = DEFAULT_SECOND_ADDR;
 }
@@ -499,8 +500,10 @@ int avb_main(int boot_device, char **argv)
 			requested_partitions[0] = "dtb";
 			requested_partitions[1] = "dtbo";
 			requested_partitions[2] = NULL;
+
 			avb_ram_data.partition_name = VIRT_BOOT_PARTITION;
-			avb_ram_data.data = (uint8_t*)simple_strtol(argv[0], NULL, 10);
+			avb_ram_data.data = (uint8_t*)simple_strtol(argv[0], NULL, 16);
+
 			avb_boot_part = &avb_ram_data;
 			boot_device = CONFIG_FASTBOOT_FLASH_MMC_DEV;
 			do_correct_boot_address((ulong) avb_ram_data.data);
@@ -628,6 +631,8 @@ int do_boot_avb(int device, char **argv)
 	return avb_main(device, argv);
 }
 
+#define MMC_HEADER_SIZE 4 /*defnes header size in blocks*/
+#define RAM_PARTITION "RAM" /*This is virtual partition when image is in RAM*/
 int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
 	struct mmc *mmc;
@@ -663,6 +668,9 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		argc--; argv++;
 	}
 
+	if (boot_part && !strncmp(boot_part, RAM_PARTITION, sizeof(RAM_PARTITION))) {
+		load = false;
+	}
 	addr = simple_strtoul(argv[0], NULL, 16);
 	if (load) {
 		if (part > PART_ACCESS_MASK) {
@@ -674,19 +682,19 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		mmc = find_mmc_device(dev);
 		if (!mmc)
 			return CMD_RET_FAILURE;
-		printf("Found (0x%p)\n", mmc); 
+		printf("Found (0x%p)\n", mmc);
 
 		if (mmc_init(mmc))
 			return CMD_RET_FAILURE;
 
-		printf("Switching to partition\n"); 
+		printf("Switching to partition\n");
 
 		ret = mmc_switch_part(mmc, part);
 		printf("switch to HW partition #%d, %s\n",
 				part, (!ret) ? "OK" : "ERROR");
 		if (ret)
 			return CMD_RET_FAILURE;
- 
+
 		if (!avb) {
 			/* We are booting in a legacy mode without avb */
 			const char *slot_suffix = cb_get_slot_char();
@@ -697,7 +705,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 			}
 			printf ("boot from MMC device=%d part=%d (%s, %s, %s) addr=0x%lx\n",
 				   dev, part, boot_part, fdt_part, dtbo_part, addr);
- 
+
 			set_compat_args(dev);
 			dev_desc = blk_get_dev("mmc", dev);
 			if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
@@ -706,6 +714,8 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 			}
 			ret = do_boot_mmc(dev_desc, boot_part, fdt_part, dtbo_part, addr);
 		}
+	} else {
+		new_argv[1] = argv[0];
 	}
 
 	if (avb) {

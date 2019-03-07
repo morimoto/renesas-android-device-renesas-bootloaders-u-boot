@@ -80,4 +80,6 @@ int bootm_decomp_image(int comp, ulong load, ulong image_start, int type,
  */
 void board_quiesce_devices(void);
 
+int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[]);
+
 #endif
