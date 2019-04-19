@@ -188,7 +188,7 @@ static int display_fdt_info(void)
 	}
 
 	if (dflt_conf_node != -ENOENT)
-		printf("Default config: %s/n", dflt_conf_desc);
+		printf("Default config: %s\n", dflt_conf_desc);
 # endif
 #endif
 	return 0;
