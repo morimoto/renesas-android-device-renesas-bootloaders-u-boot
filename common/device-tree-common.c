@@ -173,15 +173,20 @@ static uint32_t get_overlay_order(ulong *overlay_order, uint32_t max_size)
  * @info - array, which contains info about dt\dto partition
  * @size - amount of elements in @info array
  * @plat_id - current platform id
+ * @index - pointer to variable where index of founded fdt will be stored
  */
 static struct dt_table_entry *get_fdt_by_plat_id(struct device_tree_info *info,
-							int size, ulong plat_id)
+							int size, ulong plat_id, int *index)
 {
 	int i = 0;
 
-	for (i = 0; i < size; ++i)
-		if (cpu_to_fdt32(info[i].entry->id) == plat_id)
+	for (i = 0; i < size; ++i) {
+		if (cpu_to_fdt32(info[i].entry->id) == plat_id) {
+			if (index)
+				*index = i;
 			return info[i].entry;
+		}
+	}
 
 	return NULL;
 }
@@ -712,12 +717,14 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 	int dt_size = 0;
 	int dto_size = 0;
 	ulong applied_overlays = 0;
+	ulong i = 0;
+	int dtb_index = 0;
 	struct device_tree_info *dt_info = get_dt_info(dt_tbl, &dt_size);
 	struct device_tree_info *dto_info = get_dt_info(dto_tbl, &dto_size);
 	struct dt_overlays *overlays = init_dt_overlays(dto_info, dto_tbl, dto_size);
 	ulong plat_id = get_current_plat_id();
 	struct dt_table_entry *base_dt_entry =
-		get_fdt_by_plat_id(dt_info, dt_size, plat_id);
+		get_fdt_by_plat_id(dt_info, dt_size, plat_id, &dtb_index);
 
 	if (!base_dt_entry) {
 		printf("ERROR: No proper FDT entry found for current platform id=%lx\n", plat_id);
@@ -743,7 +750,20 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 	applied_overlays = apply_all_overlays(load_addr, base_dt_entry,
 		overlays, plat_id);
 
+	printf("Number of dtb entries - %d\n", dt_size);
+	printf("Loaded base dtb entry with id - 0x%x, index - %d\n",
+			cpu_to_fdt32(base_dt_entry->id),
+			dtb_index);
 	printf("Applied %ld overlay(s)\n", applied_overlays);
+	if(applied_overlays) {
+		printf("\tIndex %16s %15s", "Name", "Board Id\n");
+		for (i = 0; i < applied_overlays; ++i) {
+			printf("\t  %d  -  %16s  -  0x%x\n",
+				overlays->info[overlays->order_idx[i]].idx,
+				overlays->info[overlays->order_idx[i]].name,
+				cpu_to_fdt32(overlays->info[overlays->order_idx[i]].entry->id));
+		}
+	}
 
 	free_dt_overlays(overlays);
 	free_dt_info(dt_info, dt_size);
