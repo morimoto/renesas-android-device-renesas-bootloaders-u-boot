@@ -19,6 +19,7 @@ typedef struct andr_img_hdr andr_img_hdr;
 #define ANDR_BOOT_ARGS_SIZE 512
 #define ANDR_BOOT_EXTRA_ARGS_SIZE 1024
 
+/* Android boot header version 2 */
 struct andr_img_hdr {
 	char magic[ANDR_BOOT_MAGIC_SIZE];
 
@@ -33,7 +34,7 @@ struct andr_img_hdr {
 
 	u32 tags_addr;		/* physical addr for kernel tags */
 	u32 page_size;		/* flash page size we assume */
-	u32 unused;		/* reserved for future expansion: MUST be 0 */
+	u32 header_version;		/* Version of the boot image header. */
 
 	/* operating system version and security patch level; for
 	 * version "A.B.C" and patch level "Y-M-D":
@@ -54,32 +55,49 @@ struct andr_img_hdr {
 	u32 recovery_dtbo_size;   /* size of recovery dtbo image */
 	u64 recovery_dtbo_offset; /* offset in boot image */
 	u32 header_size;   /* size of boot image header in bytes */
+	u32 dtb_size; /* size in bytes for DTB image */
+	u64 dtb_addr; /* physical load address for DTB image */
+
 } __attribute__((packed));
 
-/*
- * +-----------------+
- * | boot header     | 1 page
- * +-----------------+
- * | kernel          | n pages
- * +-----------------+
- * | ramdisk         | m pages
- * +-----------------+
- * | second stage    | o pages
- * +-----------------+
+/* When the boot image header has a version of 2, the structure of the boot
+ * image is as follows:
  *
+ * +---------------------+
+ * | boot header         | 1 page
+ * +---------------------+
+ * | kernel              | n pages
+ * +---------------------+
+ * | ramdisk             | m pages
+ * +---------------------+
+ * | second stage        | o pages
+ * +---------------------+
+ * | recovery dtbo/acpio | p pages
+ * +---------------------+
+ * | dtb                 | q pages
+ * +---------------------+
+
  * n = (kernel_size + page_size - 1) / page_size
  * m = (ramdisk_size + page_size - 1) / page_size
  * o = (second_size + page_size - 1) / page_size
+ * p = (recovery_dtbo_size + page_size - 1) / page_size
+ * q = (dtb_size + page_size - 1) / page_size
  *
  * 0. all entities are page_size aligned in flash
- * 1. kernel and ramdisk are required (size != 0)
- * 2. second is optional (second_size == 0 -> no second)
- * 3. load each element (kernel, ramdisk, second) at
+ * 1. kernel, ramdisk and DTB are required (size != 0)
+ * 2. recovery_dtbo/recovery_acpio is required for recovery.img in non-A/B
+ *    devices(recovery_dtbo_size != 0)
+ * 3. second is optional (second_size == 0 -> no second)
+ * 4. load each element (kernel, ramdisk, second, dtb) at
  *    the specified physical address (kernel_addr, etc)
- * 4. prepare tags at tag_addr.  kernel_args[] is
+ * 5. If booting to recovery mode in a non-A/B device, extract recovery
+ *    dtbo/acpio and apply the correct set of overlays on the base device tree
+ *    depending on the hardware/product revision.
+ * 6. prepare tags at tag_addr.  kernel_args[] is
  *    appended to the kernel commandline in the tags.
- * 5. r0 = 0, r1 = MACHINE_TYPE, r2 = tags_addr
- * 6. if second_size != 0: jump to second_addr
+ * 7. r0 = 0, r1 = MACHINE_TYPE, r2 = tags_addr
+ * 8. if second_size != 0: jump to second_addr
  *    else: jump to kernel_addr
  */
+
 #endif
