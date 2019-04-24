@@ -14,6 +14,7 @@
 #include <dm/uclass.h>
 #include <i2c.h>
 #include <configs/rcar-gen3-common.h>
+#include <android_image.h>
 
 #define MAX_OVERLAYS		100
 #define MAX_DEFAULT_OVERLAYS	10
@@ -50,6 +51,8 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 
 void *load_dt_table_from_part(struct blk_desc *dev_desc,
 				const char *dtb_part_name);
+
+void *load_dt_table_from_bootimage(struct andr_img_hdr *hdr);
 
 /*
  * Device tree ID <board id><SiP><revision>
