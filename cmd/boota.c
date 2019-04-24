@@ -308,10 +308,10 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 		memcpy((void *)(u64)hdr->ramdisk_addr, (void *)ramdisk_offset, size);
 
 
-	ret = load_dt_with_overlays((struct fdt_header *)(u64)hdr->second_addr, dt_tbl, dto_tbl);
+	ret = load_dt_with_overlays((struct fdt_header *)(u64)hdr->dtb_addr, dt_tbl, dto_tbl);
 
 	if (!ret)
-		set_bootreason_args(hdr->second_addr);
+		set_bootreason_args(hdr->dtb_addr);
 
 	return ret;
 }
@@ -329,14 +329,13 @@ static u32 get_signable_size(const struct andr_img_hdr *hdr)
 	signable_size = hdr->page_size
 	 + ((hdr->kernel_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size
 	 + ((hdr->ramdisk_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size
-	 + ((hdr->second_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size;
+	 + ((hdr->dtb_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size;
 
 	return signable_size;
 }
 
 static int do_boot_mmc(struct blk_desc *dev_desc,
-		const char *boot_part, const char *dtb_part,
-		const char *dtbo_part, ulong addr)
+		const char *boot_part, const char *dtbo_part, ulong addr)
 {
 	int ret;
 	ulong kernel_offset, signable_size;
@@ -383,7 +382,7 @@ static int do_boot_mmc(struct blk_desc *dev_desc,
 		return CMD_RET_FAILURE;
 	}
 
-	fdt_addr = load_dt_table_from_part(dev_desc, dtb_part);
+	fdt_addr = load_dt_table_from_bootimage(hdr);
 
 	if (!fdt_addr)
 		return CMD_RET_FAILURE;
@@ -421,7 +420,7 @@ static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
 
 	argv[1] = avb_strdup(hex_to_str((u8 *)&hdr->kernel_addr, sizeof(hdr->kernel_addr)));
 	argv[2] = avb_strdup(hex_to_str((u8 *)&hdr->ramdisk_addr, sizeof(hdr->ramdisk_addr)));
-	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->second_addr, sizeof(hdr->second_addr)));
+	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->dtb_addr, sizeof(hdr->dtb_addr)));
 }
 
 /*
@@ -441,7 +440,7 @@ void do_correct_boot_address(ulong hdr_addr)
 	struct andr_img_hdr *hdr = map_sysmem(hdr_addr, 0);
 	hdr->kernel_addr = VIRT_SYS_LOAD_ADDR;
 	hdr->ramdisk_addr = DEFAULT_RD_ADDR;
-	hdr->second_addr = DEFAULT_SECOND_ADDR;
+	hdr->dtb_addr = DEFAULT_SECOND_ADDR;
 }
 
 static inline void avb_set_boot_device(AvbOps *ops, int boot_device)
@@ -456,15 +455,14 @@ int avb_main(int boot_device, char **argv)
 	AvbOps *ops;
 	AvbABFlowResult ab_result;
 	AvbSlotVerifyData *slot_data;
-	const char *requested_partitions[] = {"boot", "dtb", "dtbo", NULL};
+	const char *requested_partitions[] = {"boot", "dtbo", NULL};
 	bool unlocked = false;
 	char *cmdline = NULL;
 	bool abort = false;
 	int boot_delay;
 	unsigned long ts;
 	const char *avb_delay  = env_get("avb_delay");
-	AvbPartitionData *avb_boot_part = NULL, *avb_dtb_part = NULL,
-			*avb_dtbo_part = NULL, avb_ram_data;
+	AvbPartitionData *avb_boot_part = NULL, *avb_dtbo_part = NULL, avb_ram_data;
 	AvbSlotVerifyFlags flags = AVB_SLOT_VERIFY_FLAGS_NONE;
 
 	boot_delay = avb_delay ? (int)simple_strtol(avb_delay, NULL, 10)
@@ -497,9 +495,8 @@ int avb_main(int boot_device, char **argv)
 		*/
 		printf("setting ram partition..\n");
 		if (unlocked) {
-			requested_partitions[0] = "dtb";
-			requested_partitions[1] = "dtbo";
-			requested_partitions[2] = NULL;
+			requested_partitions[0] = "dtbo";
+			requested_partitions[1] = NULL;
 
 			avb_ram_data.partition_name = VIRT_BOOT_PARTITION;
 			avb_ram_data.data = (uint8_t*)simple_strtol(argv[0], NULL, 16);
@@ -585,27 +582,21 @@ int avb_main(int boot_device, char **argv)
 			if (!avb_boot_part &&
 			    !strncmp(avb_part->partition_name, "boot", 4)) {
 					avb_boot_part = avb_part;
-			} else if (strncmp(avb_part->partition_name, "dtb", 3) == 0 &&
-				strlen(avb_part->partition_name) == 3) {
-				avb_dtb_part = avb_part;
 			} else if (strncmp(avb_part->partition_name, "dtbo", 4) == 0) {
 				avb_dtbo_part = avb_part;
 			}
 		}
 
-		if (avb_boot_part == NULL || avb_dtb_part == NULL || avb_dtbo_part == NULL) {
+		if (avb_boot_part == NULL || avb_dtbo_part == NULL) {
 			if (avb_boot_part == NULL) {
 				avb_fatal("Boot partition is not found\n");
-			}
-			if (avb_dtb_part == NULL) {
-				avb_fatal("dtb partition is not found\n");
 			}
 			if (avb_dtbo_part == NULL) {
 				avb_fatal("dtbo partition is not found\n");
 			}
 		} else {
 			return do_boot_android_img_from_ram((ulong)avb_boot_part->data,
-							(ulong)avb_dtb_part->data,
+							(ulong)load_dt_table_from_bootimage((void *)avb_boot_part->data),
 							(ulong)avb_dtbo_part->data);
 		}
 
@@ -638,7 +629,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	struct mmc *mmc;
 	int dev = 0, part = 0, ret = CMD_RET_FAILURE;
 	ulong addr;
-	char *boot_part = NULL, *fdt_part = "dtb", *dtbo_part = "dtbo";
+	char *boot_part = NULL, *dtbo_part = "dtbo";
 	bool load = true, avb = false;
 	struct blk_desc *dev_desc;
 	char *new_argv[MAX_BOOTI_ARGC];
@@ -701,11 +692,10 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 			const char *slot_suffix = cb_get_slot_char();
 			if (slot_suffix) {
 				boot_part = avb_strdupv(boot_part, "_", slot_suffix, NULL);
-				fdt_part = avb_strdupv(fdt_part, "_", slot_suffix, NULL);
 				dtbo_part = avb_strdupv(dtbo_part, "_", slot_suffix, NULL);
 			}
-			printf ("boot from MMC device=%d part=%d (%s, %s, %s) addr=0x%lx\n",
-				   dev, part, boot_part, fdt_part, dtbo_part, addr);
+			printf ("boot from MMC device=%d part=%d (%s, %s) addr=0x%lx\n",
+				   dev, part, boot_part, dtbo_part, addr);
 
 			set_compat_args(dev);
 			dev_desc = blk_get_dev("mmc", dev);
@@ -713,7 +703,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 				pr_err("invalid mmc device\n");
 				return -EIO;
 			}
-			ret = do_boot_mmc(dev_desc, boot_part, fdt_part, dtbo_part, addr);
+			ret = do_boot_mmc(dev_desc, boot_part, dtbo_part, addr);
 		}
 	} else {
 		new_argv[1] = argv[0];

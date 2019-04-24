@@ -808,3 +808,52 @@ void *load_dt_table_from_part(struct blk_desc *dev_desc, const char *dtb_part_na
 
 	return fdt_addr;
 }
+
+/*
+ * +---------------------+
+ * | boot header         | 1 page
+ * +---------------------+
+ * | kernel              | n pages
+ * +---------------------+
+ * | ramdisk             | m pages
+ * +---------------------+
+ * | second stage        | o pages
+ * +---------------------+
+ * | recovery dtbo/acpio | p pages
+ * +---------------------+
+ * | dtb                 | q pages
+ * +---------------------+
+
+ * n = (kernel_size + page_size - 1) / page_size
+ * m = (ramdisk_size + page_size - 1) / page_size
+ * o = (second_size + page_size - 1) / page_size
+ * p = (recovery_dtbo_size + page_size - 1) / page_size
+ * q = (dtb_size + page_size - 1) / page_size
+ */
+void *load_dt_table_from_bootimage(struct andr_img_hdr *hdr)
+{
+	uint32_t page_size = 0;
+	uint8_t *dt_addr = (uint8_t *)hdr;
+
+	if (!dt_addr) {
+		printf("ERROR: android boot image header addr is NULL\n");
+		return dt_addr;
+	}
+
+	page_size = hdr->page_size;
+
+	/* NOTE: all addresses are aligned to page_size (2048 bytes by default)*/
+	/* bootimage header 1 page */
+	/* kernel_start_addr = start_addr + page_size */
+	dt_addr += page_size;
+	/* ramdisk_start_addr = (kernel_start_addr + kernel_size) */
+	dt_addr += ALIGN(hdr->kernel_size, page_size);
+	/* second_stage_bl_start = (ramdisk_start_addr + ramdisk_size) */
+	dt_addr += ALIGN(hdr->ramdisk_size, page_size);
+	/* recovery_dtbo_start = (second_stage_bl_start + second_stage_bl_size) */
+	dt_addr += ALIGN(hdr->second_size, page_size);
+	/* dtb_start = (recovery_dtbo_start + recovery_dtbo_size)*/
+	dt_addr += ALIGN(hdr->recovery_dtbo_size, page_size);
+
+	return (void *)dt_addr;
+}

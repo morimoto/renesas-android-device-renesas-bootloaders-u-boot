@@ -48,9 +48,9 @@ enum {
 //FIXME: Move this to more appropriate place
 /* The partitions count on eMMC */
 #ifdef ANDROID_MMC_ONE_SLOT
-#define FASTBOOT_OEM_PARTITIONS		11
+#define FASTBOOT_OEM_PARTITIONS		10
 #else
-#define FASTBOOT_OEM_PARTITIONS		18
+#define FASTBOOT_OEM_PARTITIONS		16
 #endif
 
 #define MMC_DEFAULT_PARTITION 0
