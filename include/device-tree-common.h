@@ -35,7 +35,6 @@
 #define H3v2_PLAT_ID			0x04779520
 #endif
 #endif
-#define	PARTITIONS_DTBO_NAME	"rcar-part"
 
 #if defined(CONFIG_TARGET_ULCB)
 #define	ADSP_SKKF_DTBO_NAME		"skkf-adsp"

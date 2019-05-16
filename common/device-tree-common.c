@@ -569,9 +569,6 @@ static void add_default_overlays(struct dt_overlays *overlays)
 #endif /* CONFIG_TARGET_SALVATOR_X */
 #endif /* defined(ENABLE_ADSP) */
 
-	default_dtbo[default_dtbo_count] = PARTITIONS_DTBO_NAME;
-	++default_dtbo_count;
-
 	/* There is no additional overlays */
 	if (!default_dtbo_count)
 		return;
