@@ -36,6 +36,8 @@
 #endif
 #endif
 
+#define AVB_DTBO_NAME			"rcar-avb"
+
 #if defined(CONFIG_TARGET_ULCB)
 #define	ADSP_SKKF_DTBO_NAME		"skkf-adsp"
 #elif defined(CONFIG_TARGET_SALVATOR_X)
