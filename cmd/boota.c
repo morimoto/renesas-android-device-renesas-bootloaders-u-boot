@@ -659,6 +659,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		boot_part = argv[0];
 		if (!strncmp(argv[2], "avb", strlen("avb"))) {
 			avb = true;
+			env_set("avb_status", "active");
 			printf("AVB verification is ON ..\n");
 			if (boot_part && !strcmp(boot_part, "RAM")) {
 				 load = false;
@@ -722,16 +723,6 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		ret = do_boot_avb(dev, &new_argv[1]);
 		if (ret == CMD_RET_SUCCESS) {
 			addr = simple_strtoul(new_argv[1], NULL, 16);
-		}
-	} else {
-		/*We have to remove vbmeta node if we boot without avb*/
-		struct andr_img_hdr *hdr = map_sysmem(addr, 0);
-		struct fdt_header *fdt = map_sysmem(hdr->second_addr, 0);
-		int nodeoffset = fdt_path_offset(fdt, "/firmware/android/vbmeta");
-		if (nodeoffset > 0) {
-				if (fdt_del_node(fdt, nodeoffset) == 0) {
-						printf("DTB node '/firmware/android/vbmeta' was deleted\n");
-				}
 		}
 	}
 
