@@ -252,8 +252,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 
-HOSTCC       = cc
-HOSTCXX      = c++
+HOSTCC       = $(HOST_TOOLCHAIN)gcc
+HOSTCXX      = $(HOST_TOOLCHAIN)g++
 HOSTCFLAGS   = -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer \
 		$(if $(CONFIG_TOOLS_DEBUG),-g)
 HOSTCXXFLAGS = -O2
