@@ -18,57 +18,71 @@
 # Include only for Renesas ones.
 ifneq (,$(filter $(TARGET_PRODUCT), salvator ulcb kingfisher))
 
-PRODUCT_OUT_ABS := $(abspath $(PRODUCT_OUT))
+NPROC := /usr/bin/nproc
 
-UBOOT_SRC           := $(abspath ./device/renesas/bootloaders/u-boot)
-UBOOT_OUT           := $(PRODUCT_OUT_ABS)/obj/UBOOT_OBJ
-UBOOT_KCFLAGS       := -fgnu89-inline
-UBOOT_CROSS_COMPILE := $(BSP_GCC_CROSS_COMPILE)
-UBOOT_HOST_TOOLCHAIN := $(abspath ./prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8/bin/x86_64-linux-)
-UBOOT_ARCH_PARAMS := HOST_TOOLCHAIN=$(UBOOT_HOST_TOOLCHAIN) CROSS_COMPILE=$(UBOOT_CROSS_COMPILE) ARCH=$(TARGET_ARCH)
+ifeq ($(PRODUCT_OUT),)
+$(error "PRODUCT_OUT is not set")
+endif
+
+UBOOT_SRC               := $(abspath ./device/renesas/bootloaders/u-boot)
+UBOOT_OUT               := $(PRODUCT_OUT)/obj/UBOOT_OBJ
+UBOOT_OUT_ABS           := $(abspath $(UBOOT_OUT))
+
+UBOOT_BINARY            := $(UBOOT_OUT)/u-boot.bin
+UBOOT_BINARY_INSTALLED  := $(PRODUCT_OUT)/u-boot.bin
+UBOOT_SREC              := $(UBOOT_OUT)/u-boot-elf.srec
+
+UBOOT_KCFLAGS           := -fgnu89-inline
+UBOOT_ARCH_PARAMS       := HOST_TOOLCHAIN=$(BSP_GCC_HOST_TOOLCHAIN) CROSS_COMPILE=$(BSP_GCC_CROSS_COMPILE) ARCH=$(TARGET_ARCH)
+
 ifeq ($(H3_OPTION),8GB)
-    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP4_2
+    UBOOT_KCFLAGS += -DRCAR_DRAM_MAP4_2
 else
 ifeq ($(H3_OPTION),4GB)
-    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP4_1
+    UBOOT_KCFLAGS += -DRCAR_DRAM_MAP4_1
 else
 ifeq ($(H3_OPTION),4GB2x2)
-    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP2_2
+    UBOOT_KCFLAGS += -DRCAR_DRAM_MAP2_2
 else
 ifeq ($(H3_OPTION),DYNAMIC)
-    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_AUTO
+    UBOOT_KCFLAGS += -DRCAR_DRAM_AUTO
 else
-    UBOOT_KCFLAGS_MEM = -DRCAR_DRAM_MAP4_1
+    UBOOT_KCFLAGS += -DRCAR_DRAM_MAP4_1
 endif
 endif
 endif
 endif
-
 
 ifeq ($(TARGET_MMC_ONE_SLOT),true)
-	UBOOT_KCFLAGS="-fgnu89-inline -DANDROID_MMC_ONE_SLOT"
+    UBOOT_KCFLAGS += -DANDROID_MMC_ONE_SLOT
 endif
 
+$(UBOOT_OUT):
+	$(MKDIR) -p $(UBOOT_OUT_ABS)
 
-.PHONY: uboot_out_dir
-uboot_out_dir:
-	$(MKDIR) -p $(UBOOT_OUT)
+$(UBOOT_BINARY): $(UBOOT_OUT)
+	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) mrproper
+	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) $(TARGET_BOARD_PLATFORM)_$(TARGET_BOOTLOADER_BOARD_NAME)_defconfig
+	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) KCFLAGS+="$(UBOOT_KCFLAGS)" -j `$(NPROC)`
 
-.PHONY: u-boot
-u-boot: uboot_out_dir
-	@echo "Building u-boot"
-	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT) mrproper
-	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT) $(TARGET_BOARD_PLATFORM)_$(TARGET_BOOTLOADER_BOARD_NAME)_defconfig
-	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT) KCFLAGS=$(UBOOT_KCFLAGS) KCFLAGS+=$(UBOOT_KCFLAGS_MEM)
+$(UBOOT_SREC): $(UBOOT_BINARY)
 
-.PHONY: u-boot.bin
-u-boot.bin: u-boot
-	cp $(UBOOT_OUT)/u-boot.bin $(PRODUCT_OUT_ABS)
+# ----------------------------------------------------------------------
 
-.PHONY: u-boot.srec
-u-boot.srec: u-boot
-	cp $(UBOOT_OUT)/u-boot.srec $(PRODUCT_OUT_ABS)
+include $(CLEAR_VARS)
+LOCAL_MODULE                := u-boot.bin
+LOCAL_PREBUILT_MODULE_FILE  := $(UBOOT_BINARY)
+LOCAL_MODULE_PATH           := $(PRODUCT_OUT)
+LOCAL_MODULE_CLASS          := EXECUTABLES
+include $(BUILD_PREBUILT)
+$(LOCAL_BUILT_MODULE): $(LOCAL_PREBUILT_MODULE_FILE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE                := u-boot-elf.srec
+LOCAL_PREBUILT_MODULE_FILE  := $(UBOOT_SREC)
+LOCAL_MODULE_PATH           := $(PRODUCT_OUT)
+LOCAL_MODULE_CLASS          := EXECUTABLES
+include $(BUILD_PREBUILT)
+$(LOCAL_BUILT_MODULE): $(LOCAL_PREBUILT_MODULE_FILE)
 
 endif # TARGET_PRODUCT salvator ulcb kingfisher
-
-
