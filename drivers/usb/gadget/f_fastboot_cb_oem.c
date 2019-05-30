@@ -37,10 +37,7 @@ const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS] = {
     { "dtbo",           "_a",   "raw",      524288          },
     { "boot",           "_a",   "raw",      33554432        },
     { "metadata",       NULL,   "raw",      16777216        },
-    { "system",         "_a",   "ext4",     2357198848      },
-    { "vendor",         "_a",   "ext4",     268435456       },
-    { "product",        "_a",   "ext4",     524288000       },
-    { "odm",            "_a",   "ext4",     131072000       },
+    { "super",          NULL,   "ext4",     3285188608      },
     { "userdata",       NULL,   "ext4",     0               }
 };
 #else /* !ANDROID_MMC_ONE_SLOT (A/B slots) */
@@ -55,14 +52,7 @@ const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS] = {
     { "boot",           "_a",   "raw",      33554432        },
     { "boot",           "_b",   "raw",      33554432        },
     { "metadata",       NULL,   "raw",      16777216        },
-    { "system",         "_a",   "ext4",     2357198848      },
-    { "system",         "_b",   "ext4",     2357198848      },
-    { "vendor",         "_a",   "ext4",     268435456       },
-    { "vendor",         "_b",   "ext4",     268435456       },
-    { "product",        "_a",   "ext4",     524288000       },
-    { "product",        "_b",   "ext4",     524288000       },
-    { "odm",            "_a",   "ext4",     131072000       },
-    { "odm",            "_b",   "ext4",     131072000       },
+    { "super",          NULL,   "ext4",     6566182912      },
     { "userdata",       NULL,   "ext4",     0               }
 };
 #endif
