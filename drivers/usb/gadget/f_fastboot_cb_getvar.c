@@ -390,6 +390,10 @@ static int cb_slot_retry_count(char *buf, int buf_size)
 	return 0;
 }
 
+static int cb_is_userspace(char *buf, int buf_size)
+{
+	return snprintf(buf, buf_size, "no");
+}
 
 /* ------------------------------------------------------------------ */
 static const struct var_dispatch_info var_table[] =
@@ -411,9 +415,10 @@ static const struct var_dispatch_info var_table[] =
 	{ "slot-suffixes",          cb_slot_suffixes },
 	{ "slot-count",             cb_slot_count },
 	{ "current-slot",           cb_current_slot },
-	{ "slot-successful:",           cb_slot_successful },
-	{ "slot-unbootable:",          cb_slot_unbootable },
-	{ "slot-retry-count:",           cb_slot_retry_count }
+	{ "slot-successful:",       cb_slot_successful },
+	{ "slot-unbootable:",       cb_slot_unbootable },
+	{ "slot-retry-count:",      cb_slot_retry_count },
+	{ "is-userspace",           cb_is_userspace }
 };
 
 void fastboot_cb_getvar(const char *var, char *response)
