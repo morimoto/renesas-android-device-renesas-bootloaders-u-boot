@@ -127,6 +127,13 @@ void fastboot_okay(const char *reason, char *response);
 int fastboot_set_reboot_flag(void);
 
 /**
+ * fastboot_set_fastbootd_flag() - Set flag to indicate reboot fastbootd
+ *
+ * Set flag which indicates that we should reboot into the fastbootd
+ */
+int fastboot_set_fastbootd_flag(void);
+
+/**
  * fastboot_set_progress_callback() - set progress callback
  *
  * @progress: Pointer to progress callback
