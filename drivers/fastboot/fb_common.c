@@ -99,6 +99,26 @@ int fastboot_set_reboot_flag(void)
 }
 
 /**
+ * fastboot_set_fastbootd_flag() - Set flag to indicate reboot fastbootd
+ *
+ * Set flag which indicates that we should reboot into the fastbootd
+ */
+int fastboot_set_fastbootd_flag(void)
+{
+	struct bootloader_message boot;
+
+	memset(&boot, 0, sizeof(boot));
+
+	/* Replace the command & recovery fields. */
+	strlcpy(boot.command, "boot-recovery", sizeof(boot.command));
+	strlcpy(boot.recovery, "recovery\n", sizeof(boot.recovery));
+
+	strncat(boot.recovery, "--fastboot\n", sizeof(boot.recovery));
+
+	return set_bootloader_message(&boot);
+}
+
+/**
  * fastboot_get_progress_callback() - Return progress callback
  *
  * Return: Pointer to function called during long operations

@@ -429,6 +429,11 @@ static void reboot(char *cmd, char *response)
 			fastboot_fail("Cannot set reboot flag", response);
 			return;
 		}
+	} else if (!strcmp("reboot-fastboot", cmd)) {
+		if (fastboot_set_fastbootd_flag()) {
+			fastboot_fail("Cannot set fastbootd flag", response);
+			return;
+		}
 	}
 	fastboot_set_reset_completion();
 	fastboot_okay(NULL, response);
