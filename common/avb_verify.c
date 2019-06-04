@@ -1049,10 +1049,11 @@ char *prepare_bootcmd_compat(AvbOps *ops, int boot_device,
 		extra_args = env_get("bootargs_recovery");
 	} else {
 		extra_args = env_get("bootargs_android");
-		/* Pass 'skip_initramfs' if  we're not booting into recovery
-		 * mode. Also pass the selected slot in androidboot.slot_suffix.
+		/* The decision to boot normally into Android instead of booting into
+		 * recovery mode is made if androidboot.force_normal_boot=1 is present
+		 * in the kernel commandline.
 		 */
-		cmdline = append_cmd_line(cmdline, "skip_initramfs ");
+		cmdline = append_cmd_line(cmdline, "androidboot.force_normal_boot=1 ");
 	}
 	if (extra_args)
 		cmdline = append_cmd_line(cmdline, extra_args);
