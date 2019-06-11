@@ -22,6 +22,7 @@
 #include <device-tree-common.h>
 #include <android/bootloader.h>
 #include <u-boot/crc.h>
+#include <u-boot/md5.h>
 
 /*
  * Android Image booting support on R-Car Gen3 boards
@@ -44,6 +45,72 @@ static inline bool is_zipped(ulong addr)
 
 	return false;
 
+}
+
+/*
+ * platform_get_random - Get device specific random number
+ * @rand:		random number buffer to be filled
+ * @bytes:		Number of bytes of random number to be supported
+ * @eret:		-1 in case of error, 0 for success
+ */
+static int platform_get_random(uint8_t *rand, int bytes)
+{
+	union {
+		uint64_t ticks;
+		unsigned char buf[8];
+	}	entropy;
+	unsigned char md5_out[16];
+
+	if (!bytes || bytes > 8) {
+		printf("Error: max random bytes genration supported is 8\n");
+		return -1;
+	}
+
+	entropy.ticks = get_ticks();
+	md5 (entropy.buf, 8, md5_out);
+	memcpy(rand, md5_out, bytes);
+
+	return 0;
+}
+
+/*
+ * fdt_fix_kaslr - Add kalsr-seed node in Device tree
+ * @fdt:		Device tree
+ * @eret:		0 in case of error, 1 for success
+ */
+static int fdt_fixup_kaslr(void *fdt)
+{
+	int nodeoffset;
+	int err, ret = 0;
+	u8 rand[8];
+
+	ret = platform_get_random(rand, 8);
+	if (ret < 0) {
+		printf("WARNING: No random number to set kaslr-seed\n");
+		return ret;
+	}
+
+	err = fdt_check_header(fdt);
+	if (err < 0) {
+		printf("fdt_chosen: %s\n", fdt_strerror(err));
+		return ret;
+	}
+
+	/* find or create "/chosen" node. */
+	nodeoffset = fdt_find_or_add_subnode(fdt, 0, "chosen");
+	if (nodeoffset < 0)
+		return ret;
+
+	err = fdt_setprop(fdt, nodeoffset, "kaslr-seed", rand,
+				  sizeof(rand));
+	if (err < 0) {
+		printf("WARNING: can't set kaslr-seed %s.\n",
+		       fdt_strerror(err));
+		return ret;
+	}
+	ret = 1;
+
+	return ret;
 }
 
 #ifdef CONFIG_LZ4
@@ -309,6 +376,7 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 
 
 	ret = load_dt_with_overlays((struct fdt_header *)(u64)hdr->dtb_addr, dt_tbl, dto_tbl);
+	fdt_fixup_kaslr((void *)(u64)hdr->dtb_addr);
 
 	if (!ret)
 		set_bootreason_args(hdr->dtb_addr);
