@@ -24,12 +24,13 @@ ifeq ($(PRODUCT_OUT),)
 $(error "PRODUCT_OUT is not set")
 endif
 
+PRODUCT_OUT_ABS         := $(abspath $(PRODUCT_OUT))
+
 UBOOT_SRC               := $(abspath ./device/renesas/bootloaders/u-boot)
 UBOOT_OUT               := $(PRODUCT_OUT)/obj/UBOOT_OBJ
 UBOOT_OUT_ABS           := $(abspath $(UBOOT_OUT))
 
 UBOOT_BINARY            := $(UBOOT_OUT)/u-boot.bin
-UBOOT_BINARY_INSTALLED  := $(PRODUCT_OUT)/u-boot.bin
 UBOOT_SREC              := $(UBOOT_OUT)/u-boot-elf.srec
 
 UBOOT_KCFLAGS           := -fgnu89-inline
@@ -57,32 +58,18 @@ ifeq ($(TARGET_MMC_ONE_SLOT),true)
     UBOOT_KCFLAGS += -DANDROID_MMC_ONE_SLOT
 endif
 
-$(UBOOT_OUT):
+u-boot:
 	$(MKDIR) -p $(UBOOT_OUT_ABS)
-
-$(UBOOT_BINARY): $(UBOOT_OUT)
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) mrproper
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) $(TARGET_BOARD_PLATFORM)_$(TARGET_BOOTLOADER_BOARD_NAME)_defconfig
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) KCFLAGS+="$(UBOOT_KCFLAGS)" -j `$(NPROC)`
-
-$(UBOOT_SREC): $(UBOOT_BINARY)
+	cp -vF $(UBOOT_OUT_ABS)/u-boot.bin $(UBOOT_OUT_ABS)/u-boot-elf.srec $(PRODUCT_OUT_ABS)/
 
 # ----------------------------------------------------------------------
 
 include $(CLEAR_VARS)
-LOCAL_MODULE                := u-boot.bin
-LOCAL_PREBUILT_MODULE_FILE  := $(UBOOT_BINARY)
-LOCAL_MODULE_PATH           := $(PRODUCT_OUT)
-LOCAL_MODULE_CLASS          := EXECUTABLES
-include $(BUILD_PREBUILT)
-$(LOCAL_BUILT_MODULE): $(LOCAL_PREBUILT_MODULE_FILE)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE                := u-boot-elf.srec
-LOCAL_PREBUILT_MODULE_FILE  := $(UBOOT_SREC)
-LOCAL_MODULE_PATH           := $(PRODUCT_OUT)
-LOCAL_MODULE_CLASS          := EXECUTABLES
-include $(BUILD_PREBUILT)
-$(LOCAL_BUILT_MODULE): $(LOCAL_PREBUILT_MODULE_FILE)
+LOCAL_MODULE                := u-boot
+LOCAL_MODULE_TAGS           := optional
+include $(BUILD_PHONY_PACKAGE)
 
 endif # TARGET_PRODUCT salvator ulcb kingfisher
