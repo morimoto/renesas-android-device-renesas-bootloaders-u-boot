@@ -452,7 +452,7 @@ static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
 #define DEFAULT_SECOND_ADDR	0x48000800
 
 /*We need virtual device and partition to support fastboot boot command*/
-#define VIRT_BOOT_DEVICE	"-1"
+#define VIRT_BOOT_DEVICE	(-1)
 #define VIRT_BOOT_PARTITION "RAM"
 #define VIRT_SYS_LOAD_ADDR	0x48080000
 
@@ -509,7 +509,7 @@ int avb_main(int boot_device, char **argv)
 
 	printf("boot_device = %d\n", boot_device);
 
-	if (boot_device == (int) simple_strtoul(VIRT_BOOT_DEVICE, NULL, 10)) {
+	if (boot_device == VIRT_BOOT_DEVICE) {
 		/*
 		* We are booting by fastboot boot command
 		* This is only supported in unlocked state
@@ -663,7 +663,7 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	}
 
 	if (argc >= 2) {
-		dev = (int) simple_strtoul(argv[0], NULL, 10);
+		dev = (int) simple_strtol(argv[0], NULL, 10);
 		argc--; argv++;
 	}
 
