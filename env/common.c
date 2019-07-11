@@ -242,6 +242,10 @@ void env_relocate(void)
 #endif
 	} else {
 		env_load();
+		uint32_t rtc_time = env_get_ulong("rtc_time", 10, RTC_TIME_SEC);
+		++rtc_time;
+		env_set_ulong("rtc_time", rtc_time);
+		env_save();
 	}
 }
 

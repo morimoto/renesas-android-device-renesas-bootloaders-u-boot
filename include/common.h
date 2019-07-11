@@ -591,4 +591,7 @@ int cpu_release(u32 nr, int argc, char * const argv[]);
 # include <environment.h>
 #endif
 
+/* Initial time GMT: Friday, July 19, 2019 8:13:20 AM */
+#define RTC_TIME_SEC 1563524000
+
 #endif	/* __COMMON_H_ */

@@ -139,6 +139,26 @@ static void set_blkdevparts_args(void)
 	}
 }
 
+static void set_fakertc_args(void)
+{
+	char *bootargs = env_get("bootargs");
+	int len = 0;
+	if (bootargs)
+		len += strlen(bootargs);
+	len += 21;	/* for 'init_time=1563524000 '*/
+	char *newbootargs = malloc(len);
+	if (newbootargs) {
+		snprintf(newbootargs, len, "init_time=%u %s",
+				(unsigned int)env_get_ulong("rtc_time", 10, RTC_TIME_SEC),
+				bootargs);
+		env_set("bootargs", newbootargs);
+	} else {
+		puts("Error: malloc in set_fakertc_args failed!\n");
+		return;
+	}
+	free(newbootargs);
+}
+
 /* Function adds 'androidboot.bootreason=xxxxx' to bootargs */
 static void set_bootreason_args(u32 addr) {
 	char *bootargs = env_get("bootargs");
@@ -254,6 +274,7 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 	set_board_id_args(get_current_plat_id());
 	set_cpu_revision_args();
 	set_blkdevparts_args();
+	set_fakertc_args();
 
 	ret = android_image_get_kernel(hdr, 1, &kernel_offset, &size);
 	if (ret) {
