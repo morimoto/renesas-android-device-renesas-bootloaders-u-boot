@@ -22,3 +22,5 @@
 &prr {
 	u-boot,dm-pre-reloc;
 };
+
+#include "rcar-android-partitions.dtsi"

@@ -7,10 +7,10 @@
 #include <config.h>
 #include <common.h>
 #include <errno.h>
+#include <malloc.h>
 #include <version.h>
 #include <fastboot.h>
 #include <avb_verify.h>
-
 
 struct var_dispatch_info {
 	char *var;
@@ -18,8 +18,8 @@ struct var_dispatch_info {
 };
 
 
-/* Initialized in f_fastboot_cb_oem.c */
-extern const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS];
+/* Initialized in fastboot_cb_getvar() */
+static struct oem_part_table oem_partition_table;
 
 /* ------------------------------------------------------------------ */
 static int cb_version_fastboot(char *buf, int buf_size)
@@ -139,16 +139,16 @@ static int find_oem_partition_with_slot(char *partname)
 {
 	const char *cur_slot = cb_get_slot_char();
 
-	for (int i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-		if (cur_slot != NULL && oem_partition_table[i].slot != NULL) {
-			if (!strcmp(cur_slot, oem_partition_table[i].slot) &&
-				!strcmp(partname, oem_partition_table[i].name)) {
+	for (int i = 0; i < oem_partition_table.parts_count; i++) {
+		if (cur_slot != NULL && oem_partition_table.partitions[i].slot != NULL) {
+			if (!strcmp(cur_slot, oem_partition_table.partitions[i].slot) &&
+				!strcmp(partname, oem_partition_table.partitions[i].name)) {
 					return i;
 				} else {
 					char name[32];
 					snprintf(name, sizeof(name), "%s%s",
-						oem_partition_table[i].name,
-						oem_partition_table[i].slot);
+						oem_partition_table.partitions[i].name,
+						oem_partition_table.partitions[i].slot);
 
 					if (!strcmp(partname, name))
 						return i;
@@ -175,13 +175,13 @@ static int cb_partition_size(char *buf, int buf_size)
 	}
 	/* For 'getvar all' */
 	if (!strcmp(buf, "all")) {
-		for (i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-			if (oem_partition_table[i].slot != NULL) {
+		for (i = 0; i < oem_partition_table.parts_count; i++) {
+			if (oem_partition_table.partitions[i].slot != NULL) {
 				snprintf(name, sizeof(name), "%s%s",
-					oem_partition_table[i].name,
-					oem_partition_table[i].slot);
+					oem_partition_table.partitions[i].name,
+					oem_partition_table.partitions[i].slot);
 			} else {
-				strcpy(name, oem_partition_table[i].name);
+				strcpy(name, oem_partition_table.partitions[i].name);
 			}
 			if (part_get_info_by_name(blkdev, name, &info) < 0) {
 				printf("%s: Can't find MMC partition '%s (%s)'\n",
@@ -197,8 +197,8 @@ static int cb_partition_size(char *buf, int buf_size)
 		strcpy(name, part);
 		if ((i = find_oem_partition_with_slot(part)) >= 0) {
 			snprintf(name, sizeof(name), "%s%s",
-				oem_partition_table[i].name,
-				oem_partition_table[i].slot);
+				oem_partition_table.partitions[i].name,
+				oem_partition_table.partitions[i].slot);
 		}
 		if (part_get_info_by_name(blkdev, name, &info) < 0) {
 			printf("%s: Can't find MMC partition '%s (%s)'\n", __func__, part, name);
@@ -217,16 +217,16 @@ static int cb_partition_type(char *buf, int buf_size)
 
 	/* For 'getvar all' */
 	if (!strcmp(buf, "all")) {
-		for (i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-			if (oem_partition_table[i].slot != NULL) {
+		for (i = 0; i < oem_partition_table.parts_count; i++) {
+			if (oem_partition_table.partitions[i].slot != NULL) {
 				fastboot_send_response("INFOpartition-type:%s%s:%s",
-						oem_partition_table[i].name,
-						oem_partition_table[i].slot,
-						oem_partition_table[i].fs);
+						oem_partition_table.partitions[i].name,
+						oem_partition_table.partitions[i].slot,
+						oem_partition_table.partitions[i].fs);
 			} else {
 				fastboot_send_response("INFOpartition-type:%s:%s",
-						oem_partition_table[i].name,
-						oem_partition_table[i].fs);
+						oem_partition_table.partitions[i].name,
+						oem_partition_table.partitions[i].fs);
 			}
 		}
 		return -1;
@@ -237,15 +237,16 @@ static int cb_partition_type(char *buf, int buf_size)
 		i = find_oem_partition_with_slot(part);
 
 		if (i < 0) {
-			for (i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-				if (!strcmp(part, oem_partition_table[i].name)) {
+			for (i = 0; i < oem_partition_table.parts_count; i++) {
+				if (!strcmp(part, oem_partition_table.partitions[i].name)) {
 					break;
 				}
 			}
 		}
 
-		if (i < ARRAY_SIZE(oem_partition_table)) {
-			return snprintf(buf, buf_size, "%s", oem_partition_table[i].fs);
+		if (i < oem_partition_table.parts_count) {
+			return snprintf(buf, buf_size, "%s",
+					oem_partition_table.partitions[i].fs);
 		}
 	}
 	return -1;
@@ -257,28 +258,27 @@ static int cb_has_slot(char *buf, int buf_size)
 	char *part = strtok(NULL, ":");
 
 	if (!strcmp(buf, "all")) {
-		for (int i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-			if (oem_partition_table[i].slot != NULL) {
+		for (int i = 0; i < oem_partition_table.parts_count; i++) {
+			if (oem_partition_table.partitions[i].slot != NULL) {
 				/*Report slot only once for partition *_a */
-				if (!strcmp(oem_partition_table[i].slot, "_a")) {
+				if (!strcmp(oem_partition_table.partitions[i].slot, "_a")) {
 					fastboot_send_response("INFOhas-slot:%s:%s",
-							oem_partition_table[i].name,
+							oem_partition_table.partitions[i].name,
 							"yes");
 				}
 			} else {
 				fastboot_send_response("INFOhas-slot:%s:%s",
-						oem_partition_table[i].name,
-						"no");
+						oem_partition_table.partitions[i].name, "no");
 			}
 		}
 		return -1;
 	}
 
 	if(cmd != NULL && part != NULL) {
-		for (int i = 0; i < ARRAY_SIZE(oem_partition_table); i++) {
-			if (!strcmp(oem_partition_table[i].name, part)) {
+		for (int i = 0; i < oem_partition_table.parts_count; i++) {
+			if (!strcmp(oem_partition_table.partitions[i].name, part)) {
 				return snprintf(buf, buf_size, "%s",
-					oem_partition_table[i].slot != NULL ? "yes" : "no");
+				oem_partition_table.partitions[i].slot != NULL ? "yes" : "no");
 			}
 		}
 	}
@@ -424,8 +424,30 @@ static const struct var_dispatch_info var_table[] =
 void fastboot_cb_getvar(const char *var, char *response)
 {
 	int i, found;
+	int node, subnode;
 	char val[FASTBOOT_RESPONSE_LEN];
 
+	const void *fdt = gd->fdt_blob;
+	node = fdt_path_offset(fdt, ANDROID_PARTITIONS_PATH);
+	oem_partition_table.parts_count = fdtdec_get_child_count(fdt, node);
+
+	oem_partition_table.partitions = calloc(oem_partition_table.parts_count,
+						sizeof(struct oem_part_info));
+	i = 0;
+	fdt_for_each_subnode(subnode, fdt, node) {
+		oem_partition_table.partitions[i].size = fdtdec_get_uint64(fdt, subnode,
+									"size", -1);
+
+		ofnode part_ofnode = offset_to_ofnode(subnode);
+		oem_partition_table.partitions[i].name = ofnode_get_property(part_ofnode,
+									"title", NULL);
+		oem_partition_table.partitions[i].slot = ofnode_get_property(part_ofnode,
+									"slot", NULL);
+		oem_partition_table.partitions[i].fs = ofnode_get_property(part_ofnode,
+									"type", NULL);
+
+		i++;
+	}
 	if (!strcmp(var, "all")) {
 		for (i = 0; i < ARRAY_SIZE(var_table); i++) {
 			strcpy(val, var);
@@ -434,11 +456,11 @@ void fastboot_cb_getvar(const char *var, char *response)
 			}
 		}
 		fastboot_okay("listed above", response);
-		return;
+		goto free_oem_partitions;
 	}
 
 	for (i = 0, found = 0; i < ARRAY_SIZE(var_table); i++) {
-		/* If variable name contains ':' check partally */
+		/* If variable name contains ':' check partially */
 		if (strstr(var_table[i].var, ":") != NULL) {
 			if (!strncmp(var, var_table[i].var, strlen(var_table[i].var))) {
 				found = 1;
@@ -453,20 +475,22 @@ void fastboot_cb_getvar(const char *var, char *response)
 			strcpy(val, var);
 			if (var_table[i].cb(val, sizeof(val)-1) >= 0) {
 				fastboot_response("OKAY", response, "%s", val);
-				return;
+				goto free_oem_partitions;
 			}
 			break;
 		}
 	}
 
 	/* Fastboot specific variable not found?
-	 * Looking for global bootloder variable */
+	 * Looking for global bootloader variable */
 	const char *s = env_get(var);
 
 	if(s) {
 		fastboot_response("OKAY", response, "%s", s);
-		return;
+		goto free_oem_partitions;
 	}
 
 	fastboot_response("FAIL", response, "variable '%s' not found", var);
+free_oem_partitions:
+	free(oem_partition_table.partitions);
 }
