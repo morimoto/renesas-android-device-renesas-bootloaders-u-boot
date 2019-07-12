@@ -340,7 +340,7 @@ static void set_boottime_args(void) {
 	if (newbootargs) {
 		/* Add bootloaders boot time to the Kernel command line */
 		boot_time = get_timer(0) + boot_prep_time;
-		snprintf(newbootargs, len, "androidboot.boottime=%lu.%lu %s",
+		snprintf(newbootargs, len, "androidboot.boottime=%lu.%03lu %s",
 				boot_time / 1000, boot_time % 1000, bootargs);
 		env_set("bootargs", newbootargs);
 	} else {
