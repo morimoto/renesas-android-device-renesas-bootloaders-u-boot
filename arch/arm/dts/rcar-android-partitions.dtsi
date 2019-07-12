@@ -1,0 +1,131 @@
+/*
+ * Device Tree Source overlay for Android partition table
+ *
+ * Copyright (C) 2019 GlobalLogic
+ *
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
+ */
+
+/* For correct work of AVB the heap size (which is defined by CONFIG_SYS_MALLOC_LEN
+ * constant in include/configs/rcar-gen3-common.h) should be set higher  than  the
+ * summarized value of the partitions that defined below [boot_a + boot_b + vbmeta_a
+ * + vbmeta_b], if ANDROID_MMC_ONE_SLOT wasn't defined. The size of a heap should be
+ * set higher than the summarized value of the [boot + vbmeta] size if
+ * ANDROID_MMC_ONE_SLOT was defined.
+ */
+
+/ {
+	android {
+		partitions_oneslot {
+			misc {
+				title = "misc";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			pst {
+				title = "pst";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			vbmeta {
+				title = "vbmeta";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			dtbo {
+				title = "dtbo";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			boot {
+				title = "boot";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x2000000>; /* 32 MB */
+			};
+			metadata {
+				title = "metadata";
+				type = "raw";
+				size = <0x0 0x1000000>; /* 16 MB */
+			};
+			super {
+				title = "super";
+				type = "raw";
+				size = <0x0 0xC3D00000>; /* 3.133 GB */
+			};
+			userdata {
+				title = "userdata";
+				type = "ext4";
+				size = <0x0 0x0>;
+			};
+		};
+
+		partitions {
+			misc {
+				title = "misc";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			pst {
+				title = "pst";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			vbmeta_a {
+				title = "vbmeta";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			vbmeta_b {
+				title = "vbmeta";
+				slot = "_b";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			dtbo_a {
+				title = "dtbo";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			dtbo_b {
+				title = "dtbo";
+				slot = "_b";
+				type = "raw";
+				size = <0x0 0x80000>; /* 0.5 MB */
+			};
+			boot_a {
+				title = "boot";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x2000000>; /* 32 MB */
+			};
+			boot_b {
+				title = "boot";
+				slot = "_b";
+				type = "raw";
+				size = <0x0 0x2000000>; /* 32 MB */
+			};
+			metadata {
+				title = "metadata";
+				type = "raw";
+				size = <0x0 0x1000000>; /* 16 MB */
+			};
+			super {
+				title = "super";
+				type = "raw";
+				size = <0x1 0x87600000>; /* 6.262 GB */
+			};
+			userdata {
+				title = "userdata";
+				type = "ext4";
+				size = <0x0 0x0>;
+			};
+		};
+	};
+};
