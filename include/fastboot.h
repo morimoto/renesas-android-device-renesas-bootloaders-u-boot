@@ -17,6 +17,12 @@
 
 #define FASTBOOT_VERSION	"0.4"
 
+#ifdef ANDROID_MMC_ONE_SLOT
+#define ANDROID_PARTITIONS_PATH	"/android/partitions_oneslot"
+#else
+#define ANDROID_PARTITIONS_PATH	"/android/partitions"
+#endif
+
 /* The 64 defined bytes plus \0 */
 #define FASTBOOT_COMMAND_LEN	(64 + 1)
 #define FASTBOOT_RESPONSE_LEN	(64 + 1)
@@ -45,21 +51,18 @@ enum {
 	FASTBOOT_COMMAND_COUNT
 };
 
-//FIXME: Move this to more appropriate place
-/* The partitions count on eMMC */
-#ifdef ANDROID_MMC_ONE_SLOT
-#define FASTBOOT_OEM_PARTITIONS		8
-#else
-#define FASTBOOT_OEM_PARTITIONS		11
-#endif
-
 #define MMC_DEFAULT_PARTITION 0
 
 struct oem_part_info {
-    char *          name;       /* partition name */
-    char *          slot;       /* partition slot a or b */
-    char *          fs;         /* partition file system */
-    size_t          size;       /* partition size Bytes */
+	const char *	name;	/* partition name */
+	const char *	slot;	/* partition slot a or b */
+	const char *	fs;	/* partition file system */
+	size_t		size;	/* partition size Bytes */
+};
+
+struct oem_part_table {
+	struct oem_part_info *partitions;
+	size_t parts_count;
 };
 
 #define FASTBOOT_MAGIC_LOCKED       0xC00010FF

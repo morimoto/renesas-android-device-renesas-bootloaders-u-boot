@@ -16,45 +16,11 @@
 #include <android/bootloader.h>
 #include <linux/ctype.h>
 #include <environment.h>
+#include <fdtdec.h>
+#include <dm/ofnode.h>
 
 #ifndef CONFIG_RANDOM_UUID
-#error "CONFIG_RANDOM_UUID must be enabled for oem partitionng"
-#endif
-
-/* For correct work of AVB the heap size (which is defined by CONFIG_SYS_MALLOC_LEN
- * constant in include/configs/rcar-gen3-common.h) should be set higher  than  the
- * summarized value of the 'oem_partition_table' array [boot_a + boot_b  +  dtb_a +
- * dtb_b + vbmeta_a + vbmeta_b], if ANDROID_MMC_ONE_SLOT wasn't defined. The size of
- * a heap should be  set higher than the summarized value of the 'oem_partition_table'
- * array [boot + dtb + vbmeta] if ANDROID_MMC_ONE_SLOT was defined.
- */
-#ifdef ANDROID_MMC_ONE_SLOT
-const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS] = {
-    /* Name             Slot    F/S type    Size */
-    { "misc",           NULL,   "raw",      524288          },
-    { "pst",            NULL,   "raw",      524288          },
-    { "vbmeta",         "_a",   "raw",      524288          },
-    { "dtbo",           "_a",   "raw",      524288          },
-    { "boot",           "_a",   "raw",      33554432        },
-    { "metadata",       NULL,   "raw",      16777216        },
-    { "super",          NULL,   "ext4",     3285188608      },
-    { "userdata",       NULL,   "ext4",     0               }
-};
-#else /* !ANDROID_MMC_ONE_SLOT (A/B slots) */
-const struct oem_part_info oem_partition_table[FASTBOOT_OEM_PARTITIONS] = {
-    /* Name             Slot    F/S type    Size */
-    { "misc",           NULL,   "raw",      524288          },
-    { "pst",            NULL,   "raw",      524288          },
-    { "vbmeta",         "_a",   "raw",      524288          },
-    { "vbmeta",         "_b",   "raw",      524288          },
-    { "dtbo",           "_a",   "raw",      524288          },
-    { "dtbo",           "_b",   "raw",      524288          },
-    { "boot",           "_a",   "raw",      33554432        },
-    { "boot",           "_b",   "raw",      33554432        },
-    { "metadata",       NULL,   "raw",      16777216        },
-    { "super",          NULL,   "ext4",     6566182912      },
-    { "userdata",       NULL,   "ext4",     0               }
-};
+#error "CONFIG_RANDOM_UUID must be enabled for oem partitioning"
 #endif
 
 static int oem_dump_help(char *response)
@@ -74,8 +40,12 @@ static int oem_format(char *response)
 {
 	struct blk_desc *blkdev = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
 	struct disk_partition *parts;
-	int i, num_parts = ARRAY_SIZE(oem_partition_table);
+	int i, node, part_subnode, num_parts;
 	char uuid[64], name[32];
+	const void *fdt = gd->fdt_blob;
+
+	node = fdt_path_offset(fdt, ANDROID_PARTITIONS_PATH);
+	num_parts = fdtdec_get_child_count(fdt, node);
 
 	if (!blkdev || blkdev->type == DEV_TYPE_UNKNOWN) {
 		fastboot_fail("FAIL eMMC device not found!", response);
@@ -86,7 +56,7 @@ static int oem_format(char *response)
 		blkdev->vendor, blkdev->product, blkdev->revision,
 		(blkdev->lba * blkdev->blksz) / 1024 / 1024);
 
-	parts = calloc(sizeof(disk_partition_t), num_parts);
+	parts = calloc(num_parts, sizeof(disk_partition_t));
 	if (parts == NULL) {
 		printf("%s: Unable to allocate memory for new partition table, %lu bytes",
 			__func__, num_parts * sizeof(disk_partition_t));
@@ -97,9 +67,10 @@ static int oem_format(char *response)
 	parts[0].start = (524288 / blkdev->blksz);
 
 	/* Construct partition table */
-	for (i = 0; i < num_parts; i++)
+	i = 0;
+	fdt_for_each_subnode(part_subnode, fdt, node)
 	{
-		size_t blks, size = oem_partition_table[i].size;
+		size_t blks, size = fdtdec_get_uint64(fdt, part_subnode, "size", -1);
 
 		/* Calculate size of partition in blocks */
 		blks = (size / blkdev->blksz);
@@ -111,13 +82,16 @@ static int oem_format(char *response)
 		/* Set partition UUID */
 		gen_rand_uuid_str(parts[i].uuid, UUID_STR_FORMAT_STD);
 
+		ofnode part_ofnode = offset_to_ofnode(part_subnode);
 		/* Copy partition name */
-		strcpy((char*)parts[i].name, oem_partition_table[i].name);
+		strcpy((char*) parts[i].name, ofnode_get_property(part_ofnode, "title", NULL));
 
+		const char *part_slot = ofnode_get_property(part_ofnode, "slot", NULL);
 		/* Append slot if exist */
-		if (oem_partition_table[i].slot != NULL) {
-			strcat((char*)parts[i].name, oem_partition_table[i].slot);
+		if (part_slot != NULL) {
+			strcat((char*) parts[i].name, part_slot);
 		}
+		i++;
 	}
 
 	/* Gen disk UUID */
@@ -134,22 +108,28 @@ static int oem_format(char *response)
 
 	fastboot_send_response("INFO Created new GPT partition table:");
 
-	for (i = 0; i < num_parts; i++) {
+	fdt_for_each_subnode(part_subnode, fdt, node)
+	{
 		disk_partition_t info;
 
-		strcpy(name, oem_partition_table[i].name);
+		ofnode part_ofnode = offset_to_ofnode(part_subnode);
 
+		const char *part_name = ofnode_get_property(part_ofnode, "title", NULL);
+		strcpy(name, part_name);
+
+		const char *part_slot = ofnode_get_property(part_ofnode, "slot", NULL);
 		/* Append slot if exist */
-		if (oem_partition_table[i].slot != NULL) {
-			strcat(name, oem_partition_table[i].slot);
+		if (part_slot != NULL) {
+			strcat(name, part_slot);
 		}
 
+		const char *part_fs = ofnode_get_property(part_ofnode, "type", NULL);
 		if (part_get_info_by_name(blkdev, name, &info) >= 0) {
 		fastboot_send_response("INFO     /%s (%zu KiB, %s)",
-			info.name, (info.size * blkdev->blksz) / 1024, oem_partition_table[i].fs);
+			info.name, (info.size * blkdev->blksz) / 1024, part_fs);
 		} else {
 			fastboot_send_response("INFO     /%s (ERROR unable to get info)",
-				oem_partition_table[i].name);
+					part_name);
 		}
 	}
 
