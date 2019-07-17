@@ -712,6 +712,47 @@ static void free_dt_overlays(struct dt_overlays *overlays)
 	free(overlays);
 }
 
+int append_partition_layout(struct fdt_header *fdt)
+{
+	/* Append kernel FDT with partitions layout from U-boot */
+	const void *uboot_fdt = gd->fdt_blob;
+
+	int kernel_part_node = fdt_path_offset(fdt, "/android/partitions");
+	int uboot_part_node = fdt_path_offset(uboot_fdt, ANDROID_PARTITIONS_PATH);
+	int uboot_subnode;
+	if (kernel_part_node > 0) {
+		fdt_for_each_subnode(uboot_subnode, uboot_fdt, uboot_part_node) {
+			const char *name = fdt_get_name(uboot_fdt, uboot_subnode, NULL);
+			int kernel_subnode = fdt_add_subnode(fdt, kernel_part_node, name);
+			if (kernel_subnode < 0) {
+				printf("ERROR: can not create node %s in kernel FDT\n",
+					name);
+				return -1;
+			}
+
+			int property;
+			fdt_for_each_property_offset(property, uboot_fdt, uboot_subnode)
+			{
+				const char *prop_name;
+				const void *prop;
+				int prop_len, ret;
+				prop = fdt_getprop_by_offset(uboot_fdt, property, &prop_name,
+							&prop_len);
+				ret = fdt_setprop(fdt, kernel_subnode, prop_name, prop, prop_len);
+				if (ret) {
+					printf("Failed to set %s property in %s node\n", prop_name,
+						name);
+					return -1;
+				}
+			}
+		}
+	} else {
+		printf("ERROR: node \"/android/partition\" not found in FDT\n");
+		return -1;
+	}
+	return 0;
+}
+
 int load_dt_with_overlays(struct fdt_header *load_addr,
 				struct dt_table_header *dt_tbl,
 				struct dt_table_header *dto_tbl)
@@ -721,6 +762,7 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 	ulong applied_overlays = 0;
 	ulong i = 0;
 	int dtb_index = 0;
+	int ret;
 	struct device_tree_info *dt_info = get_dt_info(dt_tbl, &dt_size);
 	struct device_tree_info *dto_info = get_dt_info(dto_tbl, &dto_size);
 	struct dt_overlays *overlays = init_dt_overlays(dto_info, dto_tbl, dto_size);
@@ -735,6 +777,12 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 
 	/* Base device tree should be loaded in defined address */
 	load_dt_at_addr(load_addr, base_dt_entry, dt_tbl);
+
+	ret = append_partition_layout(load_addr);
+	if (ret) {
+		printf("Failed to append partition layout to kernel FDT\n");
+		return -1;
+	}
 
 	/*
 	 * Next sections is not critical - we can try to boot without overlays,
