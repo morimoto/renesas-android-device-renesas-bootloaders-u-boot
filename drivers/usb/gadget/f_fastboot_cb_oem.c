@@ -27,7 +27,6 @@ static int oem_dump_help(char *response)
 {
 	fastboot_send_response("INFO  flash <IPL>  - flash specified IPL:");
 	fastboot_send_response("INFO");
-	fastboot_send_response("INFO  erase 	   - erase secure store.");
 	fastboot_send_response("INFO  format	   - create new GPT partition table on eMMC.");
 	fastboot_send_response("INFO  lock_status  - show lock status of the IPL and eMMC.");
 	fastboot_send_response("INFO  setenv NAME <VALUE>  - set environment variable.\n");
@@ -137,34 +136,6 @@ static int oem_format(char *response)
 	return 0;
 }
 
-static int oem_erase(char *response)
-{
-	struct bootloader_message bcb;
-
-	if(get_bootloader_message(&bcb)) {
-		fastboot_fail(" load bootloader control block", response);
-		return -1;
-	}
-
-	memset(&bcb.command, 0, sizeof(bcb.command));
-	memset(&bcb.recovery, 0, sizeof(bcb.recovery));
-
-	strlcpy(bcb.command, "boot-recovery", sizeof(bcb.command));
-
-	snprintf(bcb.recovery, sizeof(bcb.recovery),
-		"recovery\n" \
-		"--erase_sstdata\n"
-	);
-
-	if(set_bootloader_message(&bcb) < 0) {
-		fastboot_fail(" write bootloader control block", response);
-		return -1;
-	}
-	fastboot_set_reset_completion();
-	fastboot_okay(NULL, response);
-	return INT_MAX; /* Reboot after exit */
-}
-
 static int oem_lock_status(char *response)
 {
 	int ipl_locked = 0, mmc_locked = 0;
@@ -238,15 +209,6 @@ void fastboot_cb_oem(char *cmd, char *response)
 			return;
 		}
 		oem_format(response);
-		return;
-	}
-
-	if (!strcmp(cmd, "erase")) {
-		if (mmc_locked || ipl_locked) {
-			fastboot_fail("erase device locked", response);
-			return;
-		}
-		oem_erase(response);
 		return;
 	}
 
