@@ -210,8 +210,6 @@ int board_fit_config_name_match(const char *name)
 #if defined(CONFIG_R8A7796)
 		if (!strcmp(dt_fit.target_name, "r8a7796-salvator-x-u-boot"))
 			return 0;
-#endif
-#if defined(CONFIG_R8A77965)
 		if (!strcmp(dt_fit.target_name, "r8a77965-salvator-x-u-boot"))
 			return 0;
 #endif
@@ -262,13 +260,11 @@ int board_fit_config_name_match(const char *name)
 					   "r8a7796-salvator-xs-2x4g-u-boot") &&
 				   bank_num == 2 && bank_size == 0x100000000) {
 				return 0;
-			}
+			} else if (!strcmp(dt_fit.target_name,
+					   "r8a77965-salvator-xs-u-boot"))
+				return 0;
 		}
 		/* else works default : return -1 */
-#endif
-#if defined(CONFIG_R8A77965)
-		if (!strcmp(dt_fit.target_name, "r8a77965-salvator-xs-u-boot"))
-			return 0;
 #endif
 		break;
 	}
