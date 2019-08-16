@@ -12,11 +12,6 @@
 #define BOARD_ID_UNKNOWN	0xff
 #define BOARD_REV_UNKNOWN	0xff
 
-#define BANKSIZE_SHIFT		(28)
-#define BOARD_BANK_SIZE_1GB	(0x40000000)
-#define BOARD_BANK_SIZE_2GB	(0x80000000)
-#define BOARD_BANK_SIZE_4GB	(0x100000000)
-
 struct rcar_dram_conf_t {
 	u64 dram_type;
 	u64 legacy_address;

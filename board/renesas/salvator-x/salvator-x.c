@@ -181,7 +181,6 @@ int board_fit_config_name_match(const char *name)
 	int ret;
 	struct rcar_dram_tiny_t dram_tiny;
 	struct rcar_dt_fit_t dt_fit;
-	uint64_t shifted_bank_size = 0;
 
 	dt_fit.board_id = 0xff;
 	dt_fit.board_rev = 0xff;
@@ -196,7 +195,6 @@ int board_fit_config_name_match(const char *name)
 		return -1;
 
 	ret = board_detect_dram2(&dram_tiny);
-	shifted_bank_size = ((uint64_t)dram_tiny.bank_size << BANKSIZE_SHIFT);
 
 	switch (dt_fit.board_id) {	 /* only supported board */
 	case BOARD_ID_SALVATOR_X:
@@ -218,17 +216,17 @@ int board_fit_config_name_match(const char *name)
 			if (!strcmp(dt_fit.target_name,
 				    "r8a7795-salvator-xs-u-boot") &&
 				dram_tiny.bank_num == 4 &&
-				shifted_bank_size == BOARD_BANK_SIZE_1GB) {
+				dram_tiny.bank_size == 0x40000000) {
 				return 0;
 			} else if (!strcmp(dt_fit.target_name,
 					   "r8a7795-salvator-xs-4x2g-u-boot") &&
 				dram_tiny.bank_num == 4 &&
-				shifted_bank_size == BOARD_BANK_SIZE_2GB) {
+				dram_tiny.bank_size == 0x80000000) {
 				return 0;
 			} else if (!strcmp(dt_fit.target_name,
 					   "r8a7795-salvator-xs-2x2g-u-boot") &&
 				dram_tiny.bank_num == 2 &&
-				shifted_bank_size == BOARD_BANK_SIZE_2GB) {
+				dram_tiny.bank_size == 0x80000000) {
 				return 0;
 			}
 		}
@@ -238,12 +236,12 @@ int board_fit_config_name_match(const char *name)
 			if (!strcmp(dt_fit.target_name,
 				    "r8a7796-salvator-xs-u-boot") &&
 				dram_tiny.bank_num == 2 &&
-				shifted_bank_size == BOARD_BANK_SIZE_2GB) {
+				dram_tiny.bank_size == 0x80000000) {
 				return 0;
 			} else if (!strcmp(dt_fit.target_name,
 					   "r8a7796-salvator-xs-2x4g-u-boot") &&
 				dram_tiny.bank_num == 2 &&
-				shifted_bank_size == BOARD_BANK_SIZE_4GB) {
+				dram_tiny.bank_size == 0x100000000) {
 				return 0;
 			}
 		}
