@@ -27,27 +27,6 @@ _board_no_detect_type:
 ENDPROC(board_detect_type)
 
 /*
- * int32_t board_detect_dram2(rcar_dram_tiny_t *dram_conf_addr);
- */
-ENTRY(board_detect_dram2)
-	movz	w3, #0x2
-	mov	x4, x0
-	movk	w3, #0x8200, lsl #16
-	mov	x0, x3
-	smc	#0
-	cbnz	w0, #_board_no_detect_type2
-	str	w1, [x4]
-	add	x4, x4, #4
-	str	w2, [x4]
-_board_detect_type_end2:
-	ret
-_board_no_detect_type2:
-	movn	w1, #0
-	str	w1, [x4]
-	b	#_board_detect_type_end2
-ENDPROC(board_detect_dram2)
-
-/*
  * int32_t board_detect_dram(rcar_dram_conf_t *dram_conf_addr);
  */
 ENTRY(board_detect_dram)
