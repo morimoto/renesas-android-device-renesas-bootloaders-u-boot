@@ -164,7 +164,10 @@ void board_cleanup_before_linux(void)
 int board_fit_config_name_match(const char *name)
 {
 	int ret;
-	struct rcar_dram_tiny_t dram_tiny;
+	int i;
+	int bank_num;
+	u64 bank_size;
+	struct rcar_dram_conf_t dram_conf_addr;
 	struct rcar_dt_fit_t dt_fit;
 
 	dt_fit.board_id = 0xff;
@@ -179,22 +182,28 @@ int board_fit_config_name_match(const char *name)
 	if (ret)
 		return -1;
 
-	ret = board_detect_dram2(&dram_tiny);
+	ret = board_detect_dram(&dram_conf_addr);
 
 	switch (dt_fit.board_id) {
 	case BOARD_ID_SK_PREM:
 		if (!ret) {
 			/* select memory type */
+			bank_num = 0;
+			for (i = 0; i < 4; i++) {
+				if (dram_conf_addr.address[i])
+					bank_num++;
+				else
+					break;
+			}
+			bank_size = dram_conf_addr.size[0];
 #if defined(CONFIG_R8A7795)
 			if (!strcmp(dt_fit.target_name,
 				    "r8a7795-h3ulcb-u-boot") &&
-				    dram_tiny.bank_num == 4 &&
-				    dram_tiny.bank_size == 0x40000000) {
+			    bank_num == 4 && bank_size == 0x40000000) {
 				return 0;
 			} else if (!strcmp(dt_fit.target_name,
-				   "r8a7795-h3ulcb-4x2g-u-boot") &&
-				   dram_tiny.bank_num == 4 &&
-				   dram_tiny.bank_size == 0x80000000) {
+					   "r8a7795-h3ulcb-4x2g-u-boot") &&
+				   bank_num == 4 && bank_size == 0x80000000) {
 				return 0;
 			}
 #endif

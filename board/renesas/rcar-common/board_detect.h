@@ -20,11 +20,6 @@ struct rcar_dram_conf_t {
 	u64 size[4];
 };
 
-struct rcar_dram_tiny_t {
-	u32 bank_num;
-	u32 bank_size;
-};
-
 struct rcar_dt_fit_t {
 	unsigned char board_id;
 	unsigned char board_rev;
@@ -33,4 +28,3 @@ struct rcar_dt_fit_t {
 
 int32_t board_detect_type(struct rcar_dt_fit_t *dt_fit);
 int32_t board_detect_dram(struct rcar_dram_conf_t *dram_conf_addr);
-int32_t board_detect_dram2(struct rcar_dram_tiny_t*);
