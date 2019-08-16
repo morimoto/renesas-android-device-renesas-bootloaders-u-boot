@@ -140,6 +140,9 @@ typedef struct global_data {
 #if CONFIG_IS_ENABLED(WDT)
 	struct udevice *watchdog_dev;
 #endif
+#if defined(CONFIG_R8A7795) || defined(CONFIG_R8A7796)
+	char target_name[64]; 	/* Place to store target board name taken from FDT */
+#endif
 } gd_t;
 #endif
 
