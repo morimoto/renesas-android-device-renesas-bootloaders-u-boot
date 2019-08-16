@@ -9,6 +9,8 @@
 #include <image.h>
 #include <linux/libfdt.h>
 
+DECLARE_GLOBAL_DATA_PTR;
+
 ulong fdt_getprop_u32(const void *fdt, int node, const char *prop)
 {
 	const u32 *cell;
@@ -65,16 +67,24 @@ int fit_find_config_node(const void *fdt)
 
 		if (board_fit_config_name_match(name))
 			continue;
-
+#if defined(CONFIG_R8A7795) || defined(CONFIG_R8A7796)
+		strncpy((char*)&gd->target_name, name, sizeof(gd->target_name)-1);
+#endif
 		debug("Selecting config '%s'", name);
 
 		return node;
 	}
 
 	if (dflt_conf_node != -ENOENT) {
+#if defined(CONFIG_R8A7795) || defined(CONFIG_R8A7796)
+		gd->target_name[0] = '?';
+		strncpy((char*)&gd->target_name[1], dflt_conf_desc, sizeof(gd->target_name)-2);
+#endif
 		debug("Selecting default config '%s'", dflt_conf_desc);
 		return dflt_conf_node;
 	}
-
+#if defined(CONFIG_R8A7795) || defined(CONFIG_R8A7796)
+		gd->target_name[0] = '\0';
+#endif
 	return -ENOENT;
 }

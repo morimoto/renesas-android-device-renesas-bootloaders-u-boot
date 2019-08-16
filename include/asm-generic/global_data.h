@@ -122,6 +122,9 @@ typedef struct global_data {
 	struct list_head log_head;	/* List of struct log_device */
 	int log_fmt;			/* Mask containing log format info */
 #endif
+#if defined(CONFIG_R8A7795) || defined(CONFIG_R8A7796)
+	char target_name[64]; 	/* Place to store target board name taken from FDT */
+#endif
 } gd_t;
 #endif
 
