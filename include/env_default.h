@@ -32,7 +32,7 @@ const uchar default_environment[] = {
 	"bootargs="	CONFIG_BOOTARGS			"\0"
 #endif
 #ifdef	CONFIG_BOOTCOMMAND
-	"bootcmd="	CONFIG_BOOTCOMMAND " avb" "\0"
+	"bootcmd="	CONFIG_BOOTCOMMAND "\0"
 #endif
 #ifdef	CONFIG_RAMBOOTCOMMAND
 	"ramboot="	CONFIG_RAMBOOTCOMMAND		"\0"
