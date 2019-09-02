@@ -337,86 +337,6 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 	return ret;
 }
 
-/*Defines maximum size for certificate + signed hash*/
-#define MAX_SIGN_SIZE	2048
-static u32 get_signable_size(const struct andr_img_hdr *hdr)
-{
-	u32 signable_size;
-
-	if ((!hdr) || (!hdr->page_size))
-		return 0;
-
-	/*include the page aligned image header*/
-	signable_size = hdr->page_size
-	 + ((hdr->kernel_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size
-	 + ((hdr->ramdisk_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size
-	 + ((hdr->dtb_size + hdr->page_size - 1) / hdr->page_size) * hdr->page_size;
-
-	return signable_size;
-}
-
-static int do_boot_mmc(struct blk_desc *dev_desc,
-		const char *boot_part, const char *dtbo_part, ulong addr)
-{
-	int ret;
-	ulong kernel_offset, signable_size;
-	disk_partition_t info;
-	struct andr_img_hdr *hdr;
-	void *fdt_addr;
-	void *fdt_overlay_addr;
-
-	ret = part_get_info_by_name(dev_desc, boot_part, &info);
-	if (ret < 0) {
-		printf ("Can't find partition '%s'\n", boot_part);
-		return CMD_RET_FAILURE;
-	}
-
-	printf("%s: block start = 0x%lx, block size = %ld\n", boot_part, info.start, info.blksz);
-
-	ret = blk_dread(dev_desc, info.start,
-						MMC_HEADER_SIZE, (void *) addr);
-
-	hdr = map_sysmem(addr, 0);
-
-	/* Read kernel from mmc */
-	kernel_offset = info.start + MMC_HEADER_SIZE;
-
-	signable_size = get_signable_size(hdr);
-
-	signable_size += MAX_SIGN_SIZE;  /* Add certifcates and sign */
-	signable_size /= info.blksz;     /* Get size in blocks */
-
-	if (!signable_size || (signable_size > info.size)) {
-		printf("Image size error (%lu)\n", signable_size);
-		return CMD_RET_FAILURE;
-	}
-
-	addr += MMC_HEADER_SIZE * info.blksz;
-
-	ret = blk_dread(dev_desc, kernel_offset,
-						signable_size,
-						(void *)addr);
-
-	flush_cache(addr, signable_size * info.blksz);
-	if (ret != signable_size) {
-		printf("Can't read image\n");
-		return CMD_RET_FAILURE;
-	}
-
-	fdt_addr = load_dt_table_from_bootimage(hdr);
-
-	if (!fdt_addr)
-		return CMD_RET_FAILURE;
-
-	/* This partition is not critical for booting, so we don't check the result */
-	fdt_overlay_addr = load_dt_table_from_part(dev_desc, dtbo_part);
-
-	/* By here we have image loaded into the RAM */
-	printf("HDR Addr = 0x%lx, fdt_addr = 0x%lx, fdt_overlay_addr = 0x%lx\n", (ulong)hdr, (ulong)fdt_addr, (ulong)fdt_overlay_addr);
-	return do_boot_android_img_from_ram((ulong) hdr, (ulong)fdt_addr,
-				(ulong)fdt_overlay_addr);
-}
-
 static char hexc[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 static char *hex_to_str(u8 *data, size_t size)
 {
@@ -648,49 +568,33 @@ int do_boot_avb(int device, char **argv)
 int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
 	struct mmc *mmc;
-	int dev = 0, part = 0, ret = CMD_RET_FAILURE;
+	const int user_part = 0;
+	int dev = 0, ret = CMD_RET_FAILURE;
 	ulong addr;
-	char *boot_part = NULL, *dtbo_part = "dtbo";
-	bool load = true, avb = false;
-	struct blk_desc *dev_desc;
+	char *boot_part = NULL;
+	bool load = true;
 	char *new_argv[MAX_BOOTI_ARGC];
 
 	new_argv[0] = argv[0];
 	argc--; argv++;
 
-	if (argc < 1) {
+	if (argc < 3) {
 		return CMD_RET_USAGE;
 	}
 
-	if (argc >= 2) {
-		dev = (int) simple_strtol(argv[0], NULL, 10);
-		argc--; argv++;
-	}
+	dev = (int) simple_strtol(argv[0], NULL, 10);
+	argc--; argv++;
 
-	if (argc >= 2) {
-		boot_part = argv[0];
-		if (!strncmp(argv[2], "avb", strlen("avb"))) {
-			avb = true;
-			env_set("avb_status", "active");
-			printf("AVB verification is ON ..\n");
-			if (boot_part && !strcmp(boot_part, "RAM")) {
-				 load = false;
-			}
-			argc--;
-		}
-		argc--; argv++;
-	}
+	boot_part = argv[0];
+	printf("AVB verification is ON ..\n");
+	argc--; argv++;
 
 	if (boot_part && !strncmp(boot_part, RAM_PARTITION, sizeof(RAM_PARTITION))) {
 		load = false;
 	}
+
 	addr = simple_strtoul(argv[0], NULL, 16);
 	if (load) {
-		if (part > PART_ACCESS_MASK) {
-			printf("#part_num shouldn't be larger than %d\n",
-					PART_ACCESS_MASK);
-			return CMD_RET_FAILURE;
-		}
 		printf("Looking for mmc device ..\n");
 		mmc = find_mmc_device(dev);
 		if (!mmc)
@@ -702,58 +606,37 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 		printf("Switching to partition\n");
 
-		ret = mmc_switch_part(mmc, part);
+		ret = mmc_switch_part(mmc, user_part);
 		printf("switch to HW partition #%d, %s\n",
-				part, (!ret) ? "OK" : "ERROR");
+				user_part, (!ret) ? "OK" : "ERROR");
 		if (ret)
 			return CMD_RET_FAILURE;
-
-		if (!avb) {
-			/* We are booting in a legacy mode without avb */
-			const char *slot_suffix = cb_get_slot_char();
-			if (slot_suffix) {
-				boot_part = avb_strdupv(boot_part, "_", slot_suffix, NULL);
-				dtbo_part = avb_strdupv(dtbo_part, "_", slot_suffix, NULL);
-			}
-			printf ("boot from MMC device=%d part=%d (%s, %s) addr=0x%lx\n",
-				   dev, part, boot_part, dtbo_part, addr);
-
-			set_compat_args(dev);
-			dev_desc = blk_get_dev("mmc", dev);
-			if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
-				pr_err("invalid mmc device\n");
-				return -EIO;
-			}
-			ret = do_boot_mmc(dev_desc, boot_part, dtbo_part, addr);
-		}
 	} else {
 		new_argv[1] = argv[0];
 	}
 
-	if (avb) {
-		ret = do_boot_avb(dev, &new_argv[1]);
-		if (ret == CMD_RET_SUCCESS) {
-			addr = simple_strtoul(new_argv[1], NULL, 16);
-		}
+	ret = do_boot_avb(dev, &new_argv[1]);
+	if (ret == CMD_RET_SUCCESS) {
+		addr = simple_strtoul(new_argv[1], NULL, 16);
 	}
 
 	if(ret != CMD_RET_SUCCESS) {
 		printf("ERROR: Boot Failed!\n");
 		return ret;
 	}
+
 	build_new_args(addr, new_argv);
 	argc = MAX_BOOTI_ARGC;
 	images.os.start = addr;
 	return do_booti(cmdtp, flag, argc, new_argv);
 }
 
-static char boota_help_text[] ="mmc_dev [mmc_part] boot_addr [verify]\n"
+static char boota_help_text[] ="mmc_dev [mmc_part] boot_addr \n"
 	"	  - boot Android Image from MMC\n"
 	"\tThe argument 'mmc_dev' defines mmc device\n"
 	"\tThe argument 'mmc_part' is optional and defines mmc partition\n"
 	"\tdefault partiotion is 'boot' \n"
 	"\tThe argument boot_addr defines memory address for booting\n"
-	"\tThe argument verify enables verified boot\n"
 	"";
 
 U_BOOT_CMD(
