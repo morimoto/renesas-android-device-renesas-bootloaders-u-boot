@@ -148,7 +148,7 @@ void fastboot_boot(void)
 	} else {
 		static char boot_addr_start[19];
 		static char *const boota_args[] = {
-			"boota", "-1", "RAM", boot_addr_start, "avb", NULL
+			"boota", "-1", "RAM", boot_addr_start, NULL
 		};
 
         snprintf(boot_addr_start, sizeof(boot_addr_start),
