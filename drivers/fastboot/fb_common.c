@@ -149,15 +149,24 @@ void fastboot_boot(void)
 		run_command(s, CMD_FLAG_ENV);
 	} else {
 		static char boot_addr_start[19];
+#ifdef CONFIG_CMD_BOOTA
 		static char *const boota_args[] = {
 			"boota", "-1", "RAM", boot_addr_start, NULL
 		};
+#else
+		static char *const bootm_args[] = {
+			"bootm", boot_addr_start, NULL
+		};
+#endif
 
-        snprintf(boot_addr_start, sizeof(boot_addr_start),
+		snprintf(boot_addr_start, sizeof(boot_addr_start),
 			 "0x%p", fastboot_buf_addr);
-        printf("Booting kernel at %s...\n\n\n", boot_addr_start);
-
-        do_boota(NULL, 0, ARRAY_SIZE(boota_args) - 1, boota_args);
+		printf("Booting kernel at %s...\n\n\n", boot_addr_start);
+#ifdef CONFIG_CMD_BOOTA
+		do_boota(NULL, 0, ARRAY_SIZE(boota_args) - 1, boota_args);
+#else
+		do_bootm(NULL, 0, 2, bootm_args);
+#endif
 
 		/*
 		 * This only happens if image is somehow faulty so we start
