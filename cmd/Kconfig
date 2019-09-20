@@ -219,10 +219,11 @@ config CMD_BOOTI
 
 config CMD_BOOTA
 	bool "boota"
-	depends on ARM64
+	depends on ARM64 && LIBAVB
 	default y
 	help
 	  Boot an Android image from memory.
+	  This command requires the libavb.
 
 config CMD_BOOTEFI
 	bool "bootefi"
