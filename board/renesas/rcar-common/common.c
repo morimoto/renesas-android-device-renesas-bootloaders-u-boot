@@ -102,6 +102,7 @@ static struct env_pair env_pairs[] = {
 	{ "ethaddr", NULL},
 	{ "ethact",  NULL},
 	{ "board_id", NULL},
+	{ "serialno", NULL},
 };
 
 void init_noreset_vars(void) {
