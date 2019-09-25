@@ -53,16 +53,22 @@ _bss_end_ofs:
 	.quad	__bss_end - _start
 
 .globl	_arg0
+#if !defined(__clang__)
 _arg0:
 	.dword	0
+#endif
 
 .globl	_arg1
+#if !defined(__clang__)
 _arg1:
 	.dword	0
+#endif
 
 .globl	_arg2
+#if !defined(__clang__)
 _arg2:
 	.dword	0
+#endif
 
 p_arg0 : .quad _arg0
 p_arg1 : .quad _arg1

@@ -346,7 +346,13 @@ LD		= $(CROSS_COMPILE)ld.bfd
 else
 LD		= $(CROSS_COMPILE)ld
 endif
-CC		= $(CROSS_COMPILE)gcc
+
+ifeq ($(SCAN_BUILD),1)
+CC		:= $(CC)
+else
+CC		:= $(CROSS_COMPILE)gcc
+endif
+
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -369,11 +375,12 @@ CHECKFLAGS     := -D__linux__ -Dlinux -D__STDC__ -Dunix -D__unix__ \
 
 KBUILD_CPPFLAGS := -D__KERNEL__ -D__UBOOT__
 
-KBUILD_CFLAGS   := -Wall -Wstrict-prototypes \
-		   -Wno-format-security \
-		   -fno-builtin -ffreestanding $(CSTD_FLAG)
+KBUILD_CFLAGS	:= -fno-builtin -ffreestanding $(CSTD_FLAG)
 KBUILD_CFLAGS	+= -fshort-wchar
+ifneq ($(SCAN_BUILD),1)
+KBUILD_CFLAGS	+= -Wall -Wstrict-prototypes -Wno-format-security
 KBUILD_CFLAGS	+= -Werror
+endif
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
 # Don't generate position independent code

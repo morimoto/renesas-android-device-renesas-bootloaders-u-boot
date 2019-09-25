@@ -25,7 +25,12 @@ include scripts/Kbuild.include
 # Need to define CC and CPP again here in case the top Makefile did not
 # include config.mk.  Some architectures expect CROSS_COMPILE to be defined
 # in arch/$(ARCH)/config.mk
-CC		= $(CROSS_COMPILE)gcc
+ifeq ($(SCAN_BUILD),1)
+CC	:= $(CC)
+else
+CC		:= $(CROSS_COMPILE)gcc
+endif
+
 CPP		= $(CC) -E
 
 include config.mk
