@@ -88,7 +88,9 @@ int __efi_entry_check(void)
 #ifdef CONFIG_ARM
 	assert(efi_gd);
 	app_gd = gd;
+#if !defined(__clang__)
 	gd = efi_gd;
+#endif
 #endif
 	return ret;
 }
@@ -98,7 +100,9 @@ int __efi_exit_check(void)
 {
 	int ret = --entry_count == 0;
 #ifdef CONFIG_ARM
+#if !defined(__clang__)
 	gd = app_gd;
+#endif
 #endif
 	return ret;
 }
@@ -107,7 +111,9 @@ int __efi_exit_check(void)
 void efi_save_gd(void)
 {
 #ifdef CONFIG_ARM
+#if !defined(__clang__)
 	efi_gd = gd;
+#endif
 #endif
 }
 
@@ -122,7 +128,9 @@ void efi_restore_gd(void)
 	/* Only restore if we're already in EFI context */
 	if (!efi_gd)
 		return;
+#if !defined(__clang__)
 	gd = efi_gd;
+#endif
 #endif
 }
 
@@ -2913,7 +2921,9 @@ efi_status_t EFIAPI efi_start_image(efi_handle_t image_handle,
 		 * otherwise __efi_entry_check() will put the wrong value into
 		 * app_gd.
 		 */
+#if !defined(__clang__)
 		gd = app_gd;
+#endif
 #endif
 		/*
 		 * To get ready to call EFI_EXIT below we have to execute the
