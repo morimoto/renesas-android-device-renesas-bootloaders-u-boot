@@ -11,6 +11,12 @@ CONFIG_STANDALONE_LOAD_ADDR = 0xc100000
 endif
 endif
 
+ifdef SCAN_BUILD
+MABI = aapcs
+else
+MABI = aapcs_linux
+endif
+
 CFLAGS_NON_EFI := -fno-pic -ffixed-r9 -ffunction-sections -fdata-sections
 CFLAGS_EFI := -fpic -fshort-wchar
 
@@ -79,7 +85,7 @@ checkgcc6:
 # - with ELDK 3.1 (gcc 3.x), use:
 #	-mapcs-32
 PF_CPPFLAGS_ABI := $(call cc-option,\
-			-mabi=aapcs-linux,\
+			-mabi=$(MABI),\
 			$(call cc-option,\
 				-mapcs-32,\
 				$(call cc-option,\
@@ -90,7 +96,7 @@ PF_CPPFLAGS_ABI := $(call cc-option,\
 PLATFORM_CPPFLAGS += $(PF_CPPFLAGS_ARM) $(PF_CPPFLAGS_ABI)
 
 # For EABI, make sure to provide raise()
-ifneq (,$(findstring -mabi=aapcs-linux,$(PLATFORM_CPPFLAGS)))
+ifneq (,$(findstring -mabi=$(MABI),$(PLATFORM_CPPFLAGS)))
 # This file is parsed many times, so the string may get added multiple
 # times. Also, the prefix needs to be different based on whether
 # CONFIG_SPL_BUILD is defined or not. 'filter-out' the existing entry
