@@ -18,6 +18,7 @@
 #include <env_internal.h>
 #include <fdtdec.h>
 #include <dm/ofnode.h>
+#include <cli.h>
 
 #ifndef CONFIG_RANDOM_UUID
 #error "CONFIG_RANDOM_UUID must be enabled for oem partitioning"
@@ -151,6 +152,7 @@ static int oem_lock_status(char *response)
 static int oem_setenv(char * varval, char *response)
 {
 	const char * key;
+	char finaltoken[CONFIG_SYS_CBSIZE] = {0};
 
 	if (!strcmp(varval, "default")) {
 		env_set_default("## Resetting to default environmens \n", 0);
@@ -169,12 +171,14 @@ static int oem_setenv(char * varval, char *response)
 		fastboot_fail("You must specify the name of the environment variable", response);
 		return -1;
 	}
-	if (varval && *varval != '\0') {
-		fastboot_send_response("INFOsetting env %s=%s %d", key, varval, strlen(varval));
+
+	cli_simple_process_macros(varval, finaltoken);
+	if (varval && *finaltoken != '\0') {
+		fastboot_send_response("INFOsetting env %s", key);
 	} else {
 		fastboot_send_response("INFOerase env %s", key);
 	}
-	env_set(key, varval);
+	env_set(key, finaltoken);
 	if (env_save()) {
 		fastboot_response("FAIL", response, "Save environment variable '%s' error", key);
 		return -1;
