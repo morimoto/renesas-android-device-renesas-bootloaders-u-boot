@@ -569,9 +569,8 @@ static void add_default_overlays(struct dt_overlays *overlays)
 #endif /* CONFIG_TARGET_SALVATOR_X */
 #endif /* defined(ENABLE_ADSP) */
 
-	/* There is no additional overlays */
-	if (!default_dtbo_count)
-		return;
+	default_dtbo[default_dtbo_count] = AVB_DTBO_NAME;
+	++default_dtbo_count;
 
 	for (i = 0; i < default_dtbo_count; ++i) {
 
