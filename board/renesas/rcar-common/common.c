@@ -221,5 +221,74 @@ unsigned get_bootloader_size(void)
 
 	return bootloader_size;
 }
+
+#ifdef CONFIG_OPTEE
+/*Set legal address and maximum size for every image*/
+static struct img_param img_params[IMG_MAX_NUM] = {
+	[IMG_PARAM] = {
+		.img_id = IMG_PARAM,
+		.img_name = "param",
+		.start_addr = 0,
+		.total_size = 1 * HF_SECTOR_SIZE,
+		.sectors_num = 1,
+	},
+	[IMG_IPL2] = {
+		.img_id = IMG_IPL2,
+		.img_name = "bl2",
+		.start_addr = 0x40000,
+		.total_size = 1 * HF_SECTOR_SIZE,
+		.sectors_num = 1,
+	},
+	[IMG_CERT] = {
+		.img_id = IMG_CERT,
+		.img_name = "cert",
+		.start_addr = 0x180000,
+		.total_size = 1 * HF_SECTOR_SIZE,
+		.sectors_num = 1,
+	},
+	[IMG_BL31] = {
+		.img_id = IMG_BL31,
+		.img_name = "bl31",
+		.start_addr = 0x1C0000,
+		.total_size = 1 * HF_SECTOR_SIZE,
+		.sectors_num = 1,
+	},
+	[IMG_OPTEE] = {
+		.img_id = IMG_OPTEE,
+		.img_name = "optee",
+		.start_addr = 0x200000,
+		.total_size = 2 * HF_SECTOR_SIZE,
+		.sectors_num = 2,
+	},
+	[IMG_UBOOT] = {
+		.img_id = IMG_UBOOT,
+		.img_name = "uboot",
+		.start_addr = 0x640000,
+		.total_size = 5 * HF_SECTOR_SIZE,
+		.sectors_num = 5,
+	},
+	[IMG_SSTDATA] = {
+		.img_id = IMG_SSTDATA,
+		.img_name = "ssdata",
+		.start_addr = 0x300000,
+		.total_size = 4 * HF_SECTOR_SIZE,
+		.sectors_num = 4,
+	},
+};
+
+/**
+ * get_img_params() - Returns pointer to img_param structire
+ * @image_id:	Image id
+ * Returns pointer to img_param structure on success or NULL on failure.
+ */
+struct img_param *get_img_params(enum hf_images image_id)
+{
+	if (image_id >= IMG_MAX_NUM)
+		return NULL;
+
+	return &img_params[image_id];
+}
+#endif
+
 #endif
 #endif
