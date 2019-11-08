@@ -2826,4 +2826,9 @@
 		#clock-cells = <0>;
 		clock-frequency = <0>;
 	};
+
+	optee {
+		compatible = "linaro,optee-tz";
+		method = "smc";
+	};
 };
