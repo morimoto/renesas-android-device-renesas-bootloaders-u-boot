@@ -81,4 +81,53 @@ void restore_noreset_vars(void);
 unsigned get_bootloader_size(void);
 #endif
 
+#ifdef CONFIG_OPTEE
+/* Pseudo TA's UUID, which can interact with Hyper Flash */
+#define HYPER_UUID \
+	{ 0xc462df74, 0x657b, 0x4f2b, \
+		{ 0xb7, 0x7e, 0x0e, 0x9b, 0x3e, 0x45, 0x27, 0x29 } }
+
+/* 256KB */
+#define HF_SECTOR_SIZE (0x40000U)
+
+#ifndef __ASSEMBLY__
+/* Hyper flash image IDs */
+enum hf_images {
+	IMG_PARAM,
+	IMG_IPL2,
+	IMG_CERT,
+	IMG_BL31,
+	IMG_OPTEE,
+	IMG_UBOOT,
+	IMG_SSTDATA,
+	IMG_MAX_NUM
+};
+
+struct img_sector {
+	unsigned size;
+	unsigned flash_addr;
+	unsigned char *buf;
+};
+
+struct img_param {
+	struct img_sector *data;
+	const char *img_name;
+	unsigned sectors_num;
+	unsigned img_id;
+	unsigned start_addr;
+	unsigned total_size;
+};
+
+struct img_param *get_img_params(enum hf_images image_id);
+
+#endif /* !__ASSEMBLY__ */
+
+/* Pseudo TA commands */
+#define HYPER_CMD_INIT_DRV		(0)
+#define HYPER_CMD_READ			(1)
+#define HYPER_CMD_WRITE			(2)
+#define HYPER_CMD_ERASE			(3)
+
+#endif /* CONFIG_OPTEE */
+
 #endif	/* __RCAR_GEN3_COMMON_H */
