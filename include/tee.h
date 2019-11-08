@@ -167,6 +167,29 @@ struct tee_version_data {
 };
 
 /**
+ * struct tee_shm_pool_mem_info - holds information needed to create a shared
+ * memory pool
+ * @vaddr:	Virtual address of start of pool
+ * @paddr:	Physical address of start of pool
+ * @size:	Size in bytes of the pool
+ */
+struct tee_shm_pool_mem_info {
+	unsigned long vaddr;
+	phys_addr_t paddr;
+	size_t size;
+};
+
+/**
+ * struct tee_uclass_priv - information of a TEE, stored by the uclass
+ *
+ * @list_shm:	list of structe tee_shm representing memory blocks shared
+ *		with the TEE.
+ */
+struct tee_uclass_priv {
+	struct list_head list_shm;
+};
+
+/**
  * struct tee_driver_ops - TEE driver operations
  * @get_version:	Query capabilities of TEE device,
  * @open_session:	Opens a session to a Trusted Application in the TEE,
@@ -174,6 +197,7 @@ struct tee_version_data {
  * @invoke_func:	Invokes a function in a Trusted Application,
  * @shm_register:	Registers memory shared with the TEE
  * @shm_unregister:	Unregisters memory shared with the TEE
+ * @shm_config_map:	Gets shared static memory region pool with TEE
  */
 struct tee_driver_ops {
 	/**
@@ -229,6 +253,14 @@ struct tee_driver_ops {
 	 * Returns 0 on success or < 0 on failure.
 	 */
 	int (*shm_unregister)(struct udevice *dev, struct tee_shm *shm);
+
+	/**
+	 * shm_config_map() - Gets shared static memory region pool with TEE
+	 * @dev:	The TEE device
+	 * @shm_pool:	Pointer to a shared static memory pool object
+	 */
+	void (*shm_config_map)(struct udevice *dev,
+	    struct tee_shm_pool_mem_info *shm_pool);
 };
 
 /**
@@ -348,6 +380,15 @@ int tee_close_session(struct udevice *dev, u32 session);
  */
 int tee_invoke_func(struct udevice *dev, struct tee_invoke_arg *arg,
 		    uint num_param, struct tee_param *param);
+
+/**
+ * tee_shm_config_map() - Gets shared static memory region pool with TEE
+ * @dev:	The TEE device
+ * @shm_pool:	Pointer to a shared memory pool object
+ *
+ */
+void tee_shm_config_map(struct udevice *dev,
+		    struct tee_shm_pool_mem_info *shm_pool);
 
 /**
  * tee_optee_ta_uuid_from_octets() - Converts to struct tee_optee_ta_uuid
