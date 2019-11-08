@@ -19,6 +19,8 @@
 #include <fdtdec.h>
 #include <dm/ofnode.h>
 #include <cli.h>
+#include <dm/uclass.h>
+#include <tee.h>
 
 #ifndef CONFIG_RANDOM_UUID
 #error "CONFIG_RANDOM_UUID must be enabled for oem partitioning"
@@ -26,12 +28,12 @@
 
 static int oem_dump_help(char *response)
 {
-	fastboot_send_response("INFO  flash <IPL>  - flash specified IPL:");
 	fastboot_send_response("INFO");
 	fastboot_send_response("INFO  format	   - create new GPT partition table on eMMC.");
 	fastboot_send_response("INFO  lock_status  - show lock status of the IPL and eMMC.");
-	fastboot_send_response("INFO  setenv NAME <VALUE>  - set environment variable.\n");
-	fastboot_send_response("INFO  setenv default	   - set environment variables to default.\n");
+	fastboot_send_response("INFO  setenv NAME <VALUE>  - set environment variable.");
+	fastboot_send_response("INFO  setenv default	   - set environment variables to default.");
+	fastboot_send_response("INFO  erase		   - erase a secure storage on HyperFlash");
 	fastboot_okay(NULL, response);
 	return 0;
 }
@@ -187,6 +189,58 @@ static int oem_setenv(char * varval, char *response)
 	return 0;
 }
 
+#ifdef CONFIG_OPTEE
+static void oem_erase(char *response)
+{
+	struct udevice *tee = NULL;
+	struct tee_open_session_arg arg_ses;
+	const struct tee_optee_ta_uuid uuid = HYPER_UUID;
+	struct tee_invoke_arg arg;
+	struct tee_param param[2];
+	struct img_param *erase_params;
+
+	tee = tee_find_device(tee, NULL, NULL, NULL);
+	if (!tee) {
+		fastboot_fail("FAIL", " failed to find tee device");
+		return;
+	}
+
+	memset(&arg_ses, 0, sizeof(arg_ses));
+	tee_optee_ta_uuid_to_octets(arg_ses.uuid, &uuid);
+	if (tee_open_session(tee, &arg_ses, 0, NULL)) {
+		fastboot_fail("FAIL", " failed to open session");
+		return;
+	}
+
+	erase_params = get_img_params(IMG_SSTDATA);
+	if (!erase_params) {
+		fastboot_fail("FAIL", " failed to get erase params");
+		tee_close_session(tee, arg_ses.session);
+		return;
+	}
+
+	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+	param[1].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+
+	param[0].u.value.a = erase_params->start_addr;
+	param[0].u.value.b = erase_params->total_size;
+	param[1].u.value.b = IMG_SSTDATA;
+
+	arg.func = HYPER_CMD_ERASE;
+	arg.session = arg_ses.session;
+
+	if (tee_invoke_func(tee, &arg, ARRAY_SIZE(param), param)) {
+		fastboot_fail("FAIL", " failed to invoke command");
+		tee_close_session(tee, arg_ses.session);
+		return;
+	}
+
+	tee_close_session(tee, arg_ses.session);
+
+	fastboot_okay(NULL, response);
+}
+#endif
+
 void fastboot_cb_oem(char *cmd, char *response)
 {
 	int ipl_locked = 0, mmc_locked = 0;
@@ -224,5 +278,13 @@ void fastboot_cb_oem(char *cmd, char *response)
 		oem_setenv(cmdarg, response);
 		return;
 	}
+
+#ifdef CONFIG_OPTEE
+	if (!strcmp(cmd, "erase")) {
+		oem_erase(response);
+		return;
+	}
+#endif
+
 	fastboot_response("FAIL", response, " unsupported oem command: %s", cmd);
 }
