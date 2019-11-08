@@ -8,16 +8,7 @@
 #include <dm/device-internal.h>
 #include <dm/uclass-internal.h>
 #include <tee.h>
-
-/**
- * struct tee_uclass_priv - information of a TEE, stored by the uclass
- *
- * @list_shm:	list of structe tee_shm representing memory blocks shared
- *		with the TEE.
- */
-struct tee_uclass_priv {
-	struct list_head list_shm;
-};
+#include <linux/kernel.h>
 
 static const struct tee_driver_ops *tee_get_ops(struct udevice *dev)
 {
@@ -46,14 +37,144 @@ int tee_invoke_func(struct udevice *dev, struct tee_invoke_arg *arg,
 	return tee_get_ops(dev)->invoke_func(dev, arg, num_param, param);
 }
 
+void tee_shm_config_map(struct udevice *dev,
+		    struct tee_shm_pool_mem_info *shm_pool)
+{
+	tee_get_ops(dev)->shm_config_map(dev, shm_pool);
+}
+
+static void free_tee_shmem_from_pool(struct tee_shm *shm);
+static struct tee_shm *alloc_tee_shmem_from_pool(struct udevice *dev,
+	ulong size, ulong align, ulong flags)
+{
+	struct tee_uclass_priv *priv = dev_get_uclass_priv(dev);
+	struct tee_shm_pool_mem_info shm_pool;
+	struct list_head *pos;
+	struct tee_shm *curr;
+	struct tee_shm *new_elem;
+	ulong aligned_offset;
+	uint8_t *end_ptr;
+
+	struct tee_shm *first_elem = NULL;
+	struct list_head *mem_pools = &priv->list_shm;
+
+	if (!size)
+		return NULL;
+
+	tee_shm_config_map(dev, &shm_pool);
+
+	if (list_empty(mem_pools)) {
+		new_elem = calloc(1, sizeof(*new_elem));
+		if (!new_elem)
+			return NULL;
+
+		new_elem->dev = dev;
+		new_elem->addr = (void *)shm_pool.vaddr;
+		new_elem->size = shm_pool.size;
+		list_add_tail(&new_elem->link, mem_pools);
+		first_elem = new_elem;
+	}
+
+	list_for_each(pos, mem_pools) {
+		curr = list_entry(pos, struct tee_shm, link);
+		if (curr->flags & TEE_SHM_ALLOC)
+			continue;
+
+		aligned_offset = (ulong)ALIGN((ulong)curr->addr, align) - (ulong)curr->addr;
+
+		if (curr->size < aligned_offset + size)
+			continue;
+
+		new_elem = calloc(1, sizeof(*new_elem));
+		if (!new_elem) {
+			free_tee_shmem_from_pool(first_elem);
+			return NULL;
+		}
+
+		end_ptr = (uint8_t *)curr->addr + curr->size;
+
+		curr->flags = flags;
+		curr->size = size;
+		curr->addr = (void *)(curr->addr + aligned_offset);
+
+		new_elem->dev = dev;
+		new_elem->addr = (void *)(ulong)ALIGN((ulong)curr->addr + curr->size, 8);
+		new_elem->size = end_ptr - (uint8_t *)new_elem->addr;
+
+		list_add(&new_elem->link, &curr->link);
+
+		return curr;
+	}
+
+	return NULL;
+}
+
+static void free_tee_shmem_from_pool(struct tee_shm *shm)
+{
+	struct tee_shm *prev_entry;
+	struct tee_shm *next_entry;
+	struct list_head *prev;
+	struct list_head *curr;
+	struct list_head *next;
+	struct tee_uclass_priv *priv;
+
+	if (!shm)
+		return;
+
+	shm->flags = 0;
+	curr = &shm->link;
+	priv = dev_get_uclass_priv(shm->dev);
+
+	prev = curr->prev;
+	next = curr->next;
+
+	if (next != &priv->list_shm) {
+		next_entry = list_entry(next, struct tee_shm, link);
+		if (!next_entry->flags) {
+			shm->size += next_entry->size;
+			list_del(next);
+			free(next_entry);
+		}
+	}
+
+	if (prev != &priv->list_shm) {
+		prev_entry = list_entry(prev, struct tee_shm, link);
+		if (!prev_entry->flags) {
+			prev_entry->size += shm->size;
+			list_del(curr);
+			free(shm);
+		}
+	}
+
+	if (list_empty(&priv->list_shm))
+		return;
+
+	/* Delete the last free block */
+	if (priv->list_shm.next->next == priv->list_shm.next->prev) {
+		shm = list_entry(priv->list_shm.next, struct tee_shm, link);
+		list_del(priv->list_shm.next);
+		free(shm);
+	}
+}
+
 int __tee_shm_add(struct udevice *dev, ulong align, void *addr, ulong size,
 		  u32 flags, struct tee_shm **shmp)
 {
+	struct tee_version_data v;
 	struct tee_shm *shm;
 	void *p = addr;
 	int rc;
 
+	tee_get_ops(dev)->get_version(dev, &v);
+
 	if (flags & TEE_SHM_ALLOC) {
+		if (!(v.gen_caps & TEE_GEN_CAP_REG_MEM)) {
+			*shmp = alloc_tee_shmem_from_pool(dev, size, align, flags);
+			if (!*shmp)
+				return -ENOMEM;
+			return 0;
+		}
+
 		if (align)
 			p = memalign(align, size);
 		else
@@ -118,8 +239,17 @@ int tee_shm_register(struct udevice *dev, void *addr, ulong size, u32 flags,
 
 void tee_shm_free(struct tee_shm *shm)
 {
+	struct tee_version_data v;
+
 	if (!shm)
 		return;
+
+	tee_get_ops(shm->dev)->get_version(shm->dev, &v);
+
+	if (shm->flags & TEE_SHM_ALLOC && !(v.gen_caps & TEE_GEN_CAP_REG_MEM)) {
+		free_tee_shmem_from_pool(shm);
+		return;
+	}
 
 	if (shm->flags & TEE_SHM_SEC_REGISTER)
 		tee_get_ops(shm->dev)->shm_unregister(shm->dev, shm);
