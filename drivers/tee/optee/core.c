@@ -127,12 +127,20 @@ void *optee_alloc_and_init_page_list(void *buf, ulong len, u64 *phys_buf_ptr)
 	return page_list;
 }
 
+static bool exchange_capabilities(optee_invoke_fn *invoke_fn, u32 *sec_caps);
+
 static void optee_get_version(struct udevice *dev,
 			      struct tee_version_data *vers)
 {
+	struct optee_pdata *pdata = dev_get_platdata(dev);
 	struct tee_version_data v = {
-		.gen_caps = TEE_GEN_CAP_GP | TEE_GEN_CAP_REG_MEM,
+		.gen_caps = TEE_GEN_CAP_GP,
 	};
+	u32 sec_caps;
+
+	if (!exchange_capabilities(pdata->invoke_fn, &sec_caps) ||
+		(sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM))
+		v.gen_caps |= TEE_GEN_CAP_REG_MEM;
 
 	*vers = v;
 }
@@ -491,6 +499,22 @@ static int optee_shm_unregister(struct udevice *dev, struct tee_shm *shm)
 	return rc;
 }
 
+static void optee_shm_config_map(struct udevice *dev,
+		    struct tee_shm_pool_mem_info *shm_pool)
+{
+	union {
+		struct arm_smccc_res smccc;
+		struct optee_smc_get_shm_config_result result;
+	} res;
+	struct optee_pdata *pdata = dev_get_platdata(dev);
+
+	pdata->invoke_fn(OPTEE_SMC_GET_SHM_CONFIG, 0, 0, 0, 0, 0, 0, 0, &res.smccc);
+
+	shm_pool->paddr = res.result.start;
+	shm_pool->size = res.result.size;
+	shm_pool->vaddr = (ulong)phys_to_virt(shm_pool->paddr);
+}
+
 static const struct tee_driver_ops optee_ops = {
 	.get_version = optee_get_version,
 	.open_session = optee_open_session,
@@ -498,6 +522,7 @@ static const struct tee_driver_ops optee_ops = {
 	.invoke_func = optee_invoke_func,
 	.shm_register = optee_shm_register,
 	.shm_unregister = optee_shm_unregister,
+	.shm_config_map = optee_shm_config_map,
 };
 
 static bool is_optee_api(optee_invoke_fn *invoke_fn)
@@ -614,6 +639,18 @@ static int optee_ofdata_to_platdata(struct udevice *dev)
 	return 0;
 }
 
+static int init_static_shared_pool(struct udevice *dev)
+{
+	struct tee_shm_pool_mem_info shm_pool;
+
+	optee_shm_config_map(dev, &shm_pool);
+
+	if (!shm_pool.size)
+		return -ENOENT;
+
+	return 0;
+}
+
 static int optee_probe(struct udevice *dev)
 {
 	struct optee_pdata *pdata = dev_get_platdata(dev);
@@ -631,15 +668,15 @@ static int optee_probe(struct udevice *dev)
 		return -ENOENT;
 	}
 
-	/*
-	 * OP-TEE can use both shared memory via predefined pool or as
-	 * dynamic shared memory provided by normal world. To keep things
-	 * simple we're only using dynamic shared memory in this driver.
-	 */
 	if (!exchange_capabilities(pdata->invoke_fn, &sec_caps) ||
-	    !(sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM)) {
-		debug("%s: OP-TEE capabilities mismatch\n", __func__);
-		return -ENOENT;
+		!(sec_caps & OPTEE_SMC_SEC_CAP_DYNAMIC_SHM)) {
+		debug("%s: OP-TEE doesn't support dynamic capabilities.", __func__);
+		debug("%s: Trying to use static memory pool..\n", __func__);
+		if (init_static_shared_pool(dev)) {
+			debug("%s: OP-TEE doesn't have enough memory in static shared memory pool",
+				__func__);
+			return -ENOENT;
+		}
 	}
 
 	return 0;
