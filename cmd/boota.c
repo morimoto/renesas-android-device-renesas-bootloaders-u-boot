@@ -463,6 +463,43 @@ static inline void avb_set_boot_device(AvbOps *ops, int boot_device)
 	data->mmc_dev = boot_device;
 }
 
+int inc_metadata_tries_remaining(AvbABOps* ab_ops) {
+	AvbIOResult io_ret;
+	AvbABData ab_data;
+	int active_slot;
+
+	io_ret = ab_ops->read_ab_metadata(ab_ops, &ab_data);
+	if (io_ret != AVB_IO_RESULT_OK) {
+		avb_error("I/O error while loading A/B metadata.\n");
+		return io_ret;
+	}
+
+	/* Need to understand which slot is active (by their priority) */
+	active_slot = (ab_data.slots[0].priority > ab_data.slots[1].priority) ?
+			0 : 1;
+
+	/*
+	 * In case of at least one successful_boot tries counter value
+	 * is invalid. Also we don't need to increment tries counter
+	 * when it reaches 0 or is bigger or equal than max count.
+	 */
+	if (!ab_data.slots[active_slot].successful_boot &&
+		ab_data.slots[active_slot].tries_remaining &&
+		(ab_data.slots[active_slot].tries_remaining < AVB_AB_MAX_TRIES_REMAINING))
+	{
+		ab_data.slots[active_slot].tries_remaining++;
+
+		/* Save metadata back to eMMC */
+		io_ret = ab_ops->write_ab_metadata(ab_ops, &ab_data);
+		if (io_ret != AVB_IO_RESULT_OK) {
+			avb_error("I/O error while writing A/B metadata.\n");
+			return io_ret;
+		}
+	}
+
+	return 0;
+}
+
 #define DEFAULT_AVB_DELAY 5
 int avb_main(int boot_device, char **argv)
 {
@@ -526,6 +563,16 @@ int avb_main(int boot_device, char **argv)
 	avb_set_boot_device(ops, boot_device);
 	if (unlocked)
 		flags |= AVB_SLOT_VERIFY_FLAGS_ALLOW_VERIFICATION_ERROR;
+
+	/*
+	 * Metadata boot retry counter should be incremented after we've
+	 * came here. It is needed due to the fact that BL2 decrements
+	 * this counter too. Without this, in case of corruption of some
+	 * Android images total retry counter will be twice smaller than
+	 *  needed AVB_AB_MAX_TRIES_REMAINING.
+	 */
+	if (inc_metadata_tries_remaining(ops->ab_ops))
+		avb_fatal("Failed to update metadata boot retry counter!\n");
 
 	ab_result = avb_ab_flow(ops->ab_ops,
 			requested_partitions,
