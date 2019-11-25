@@ -119,6 +119,7 @@ struct img_param {
 };
 
 struct img_param *get_img_params(enum hf_images image_id);
+unsigned srec_to_bin(char *inbuf, char *outbuf, unsigned maxbin);
 
 #endif /* !__ASSEMBLY__ */
 
