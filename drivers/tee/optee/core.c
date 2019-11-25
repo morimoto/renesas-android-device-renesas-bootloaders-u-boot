@@ -183,7 +183,7 @@ static int to_msg_param(struct optee_msg_param *msg_params, uint num_params,
 		case TEE_PARAM_ATTR_TYPE_MEMREF_INPUT:
 		case TEE_PARAM_ATTR_TYPE_MEMREF_OUTPUT:
 		case TEE_PARAM_ATTR_TYPE_MEMREF_INOUT:
-			mp->attr = OPTEE_MSG_ATTR_TYPE_RMEM_INPUT + p->attr -
+			mp->attr = OPTEE_MSG_ATTR_TYPE_TMEM_INPUT + p->attr -
 				   TEE_PARAM_ATTR_TYPE_MEMREF_INPUT;
 			mp->u.rmem.shm_ref = (ulong)p->u.memref.shm;
 			mp->u.rmem.size = p->u.memref.size;
@@ -224,7 +224,7 @@ static int from_msg_param(struct tee_param *params, uint num_params,
 		case OPTEE_MSG_ATTR_TYPE_RMEM_INPUT:
 		case OPTEE_MSG_ATTR_TYPE_RMEM_OUTPUT:
 		case OPTEE_MSG_ATTR_TYPE_RMEM_INOUT:
-			p->attr = TEE_PARAM_ATTR_TYPE_MEMREF_INPUT + attr -
+			p->attr = OPTEE_MSG_ATTR_TYPE_TMEM_INPUT + attr -
 				  OPTEE_MSG_ATTR_TYPE_RMEM_INPUT;
 			p->u.memref.size = mp->u.rmem.size;
 			shm = (struct tee_shm *)(ulong)mp->u.rmem.shm_ref;
