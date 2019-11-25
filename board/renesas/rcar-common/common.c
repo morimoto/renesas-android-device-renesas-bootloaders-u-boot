@@ -13,6 +13,9 @@
 #include <dm/uclass-internal.h>
 #include <asm/arch/rmobile.h>
 #include <mmc.h>
+#ifdef CONFIG_OPTEE
+#include <s_record.h>
+#endif
 
 #ifdef CONFIG_RCAR_GEN3
 
@@ -287,6 +290,106 @@ struct img_param *get_img_params(enum hf_images image_id)
 		return NULL;
 
 	return &img_params[image_id];
+}
+
+static int read_record(char *buf, unsigned len, char *input)
+{
+	char *p;
+	char c;
+	unsigned count = 0;
+
+	for (p = buf; p < buf + len; p++) {
+		c = input[count];		/* read character */
+		switch (c) {
+		case '\r':
+		case '\n':
+			return count + 2; /* 2 - to skip terminating symbols */
+		case '\0':
+			return (-1);
+		default:
+			*p = c;
+			count++;
+		}
+	}
+
+	*p = '\0'; /* line too long - truncate */
+	return count;
+}
+
+unsigned srec_to_bin(char *inbuf, char *outbuf, unsigned maxbin)
+{
+	char	record[SREC_MAXRECLEN + 1];	/* buffer for one S-Record	*/
+	char	binbuf[SREC_MAXBINLEN];		/* buffer for binary data	*/
+	int	first_data_line = 1;		/* Needed to deal with gaps in file */
+	int	binlen;				/* no. of data bytes in S-Rec.	*/
+	int	type;				/* return code for record type	*/
+	int	b_read = 0;				/* bytes read */
+	int	file_over = 0;
+	ulong	addr;
+	unsigned	out_size = 0;		/* Return value(size of bin file) */
+	unsigned	prev_addr = 0;
+	unsigned	prev_binlen = 0;
+
+	while (!file_over) {
+		b_read = read_record(record, SREC_MAXRECLEN, inbuf);
+		if (b_read < 0) {
+			printf("Corrupted s-record file\n");
+			out_size = 0;
+			break;
+		}
+		inbuf += b_read;
+		type = srec_decode(record, &binlen, &addr, binbuf);
+		if (type < 0) {
+			printf("Invalid S-Record\n");
+			out_size = 0;
+			file_over = 1;		/* Invalid S-Record */
+			break;
+		}
+		switch (type) {
+		case SREC_DATA2:
+		case SREC_DATA3:
+		case SREC_DATA4:
+			/* Need to check if there is empty space between our
+			 * blocks of data
+			 */
+			if ((addr - prev_addr) > prev_binlen &&
+						!first_data_line) {
+				unsigned diff;
+				diff = addr - prev_addr - prev_binlen;
+				memset(outbuf, 0, diff);
+				outbuf += diff;
+				out_size += diff;
+			}
+			memcpy(outbuf, binbuf, binlen);
+			outbuf += binlen;
+			out_size += binlen;
+			if (out_size > maxbin) {
+				printf("Binary file exceeded its limit\n");
+				file_over = 1;
+				out_size = 0;
+				break;
+			}
+			first_data_line = 0;
+			prev_binlen = binlen;
+			prev_addr = addr;
+			break;
+		case SREC_END2:
+		case SREC_END3:
+		case SREC_END4:
+			file_over = 1;
+			break;
+		case SREC_START:
+		    break;
+		case SREC_EMPTY:
+		    out_size = 0;
+		    file_over = 1;
+		    break;
+		default:
+		    break;
+		}
+	}
+
+	return out_size;
 }
 #endif
 
