@@ -16,7 +16,9 @@
 #include <mmc.h>
 #ifdef CONFIG_OPTEE
 #include <s_record.h>
-#endif
+#include <tee.h>
+#include <crc.h>
+#endif /* CONFIG_OPTEE */
 
 #define TSTR0		0x04
 #define TSTR0_STR0	0x01
@@ -262,6 +264,141 @@ struct img_param *get_img_params(enum hf_images image_id)
 		return NULL;
 
 	return &img_params[image_id];
+}
+
+#define BIN_NAME_EXT ".bin"
+#define SREC_NAME_EXT ".srec"
+
+/**
+ * get_image_type() - Returns image type by name
+ * @name:	Pointer to image name
+ *
+ * Returns nonzero value on success or @IMG_TYPE_UNKNOWN (0) on failure.
+ * The first 2 least significant bytes contain info about
+ * image number (from 0 to @IMG_MAX_NUM ).
+ * According to image type detected by name, @IMG_BIN_MASK or
+ * @IMG_SREC_MASK will be applied.
+ */
+unsigned get_image_type(const char *name)
+{
+	unsigned i;
+	unsigned img_type;
+	const char *name_ext;
+	const int buf_len = 16;
+	char buf[buf_len];
+
+	if (!name)
+		return IMG_TYPE_UNKNOWN;
+
+	if (strstr(name, BIN_NAME_EXT)) {
+		img_type = IMG_BIN_MASK;
+		name_ext = BIN_NAME_EXT;
+	} else if (strstr(name, SREC_NAME_EXT)) {
+		img_type = IMG_SREC_MASK;
+		name_ext = SREC_NAME_EXT;
+	} else
+		return IMG_TYPE_UNKNOWN;
+
+	for (i = 0; i < IMG_MAX_NUM; ++i) {
+		snprintf(&buf[0], buf_len, "%s%s", img_params[i].img_name, name_ext);
+		if (!strncmp(name, &buf[0], strlen(&buf[0])))
+			return (img_type | i);
+	}
+
+	return IMG_TYPE_UNKNOWN;
+}
+
+#define OPTEE_PAGE_ALIGNMENT (4 * 1024)
+
+/**
+ * hf_write_image() - Writes image to HyperFlash
+ * @img_param:	Pointer to an image parameter info structure
+ * @buffer:		Pointer to a buffer which will be written
+ * @size:		Input buffer size
+ *
+ * Returns zero value on success or nonzero on failure.
+ * The function invokes pseudo TA in OP-TEE, which can
+ * write to HyperFlash.
+ */
+int hf_write_image(struct img_param *img_param, void *buffer, unsigned size)
+{
+	int i;
+	int ret;
+	unsigned char *buf_ptr = buffer;
+	struct udevice *tee = NULL;
+	struct tee_shm *shmem;
+	struct tee_open_session_arg arg_ses;
+	const struct tee_optee_ta_uuid uuid = HYPER_UUID;
+	struct tee_invoke_arg arg;
+	struct tee_param param[4];
+
+	img_param->data = calloc(img_param->sectors_num, sizeof(*img_param->data));
+
+	if (!img_param->data)
+		return -1;
+
+	for (i = 0; i < img_param->sectors_num; ++i) {
+		img_param->data[i].size = HF_SECTOR_SIZE;
+		img_param->data[i].flash_addr = img_param->start_addr + i * HF_SECTOR_SIZE;
+		img_param->data[i].buf = (void *)(buf_ptr + i * HF_SECTOR_SIZE);
+	}
+
+	tee = tee_find_device(tee, NULL, NULL, NULL);
+	if (!tee)
+		goto error;
+
+	memset(&arg_ses, 0, sizeof(arg_ses));
+	tee_optee_ta_uuid_to_octets(arg_ses.uuid, &uuid);
+	if (tee_open_session(tee, &arg_ses, 0, NULL))
+		goto error;
+
+	if (__tee_shm_add(tee, OPTEE_PAGE_ALIGNMENT, NULL, HF_SECTOR_SIZE,
+	    TEE_SHM_ALLOC, &shmem))
+		goto error_close_session;
+
+	for (i = 0; i < img_param->sectors_num; ++i) {
+
+		param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+		param[1].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+		param[2].attr = TEE_PARAM_ATTR_TYPE_VALUE_INPUT;
+		param[3].attr = TEE_PARAM_ATTR_TYPE_MEMREF_INOUT;
+
+		param[0].u.value.a = img_param->data[i].flash_addr;
+		param[0].u.value.b = img_param->data[i].size;
+		param[1].u.value.a = crc32(0, img_param->data[i].buf, img_param->data[i].size);
+		param[1].u.value.b = img_param->img_id;
+		param[2].u.value.a = i;
+
+		/* Clear buffer before use */
+		memset(shmem->addr, 0, HF_SECTOR_SIZE);
+		/* Copy write buffer to shared memory */
+		memcpy(shmem->addr, img_param->data[i].buf, img_param->data[i].size);
+
+		param[3].u.memref.size = img_param->data[i].size;
+		param[3].u.memref.shm_offs = (uint64_t)shmem->addr;
+		param[3].u.memref.shm = shmem;
+
+		arg.func = HYPER_CMD_WRITE;
+		arg.session = arg_ses.session;
+
+		ret = tee_invoke_func(tee, &arg, ARRAY_SIZE(param), param);
+
+		if (ret)
+			goto error_free_shmem;
+	}
+	tee_shm_free(shmem);
+
+	tee_close_session(tee, arg_ses.session);
+	free(img_param->data);
+	return 0;
+
+error_free_shmem:
+	tee_shm_free(shmem);
+error_close_session:
+	tee_close_session(tee, arg_ses.session);
+error:
+	free(img_param->data);
+	return -1;
 }
 
 static int read_record(char *buf, unsigned len, char *input)
