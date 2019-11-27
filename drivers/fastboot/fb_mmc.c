@@ -405,6 +405,12 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	struct blk_desc *dev_desc;
 	disk_partition_t info;
 	const char *bootloader_part_name = "bootloader";
+#ifdef CONFIG_OPTEE
+	unsigned hf_image_type;
+	unsigned hf_buffer_size;
+	void *bin_buffer;
+	struct img_param *img_param_info;
+#endif
 
 	dev_desc = blk_get_dev("mmc", CONFIG_FASTBOOT_FLASH_MMC_DEV);
 	if (!dev_desc || dev_desc->type == DEV_TYPE_UNKNOWN) {
@@ -460,6 +466,48 @@ void fastboot_mmc_flash_write(const char *cmd, void *download_buffer,
 	if (strncasecmp(cmd, "zimage", 6) == 0) {
 		fb_mmc_update_zimage(dev_desc, download_buffer,
 				     download_bytes, response);
+		return;
+	}
+#endif
+
+#ifdef CONFIG_OPTEE
+	hf_image_type = get_image_type(cmd);
+	if (hf_image_type != IMG_TYPE_UNKNOWN) {
+		img_param_info = get_img_params(hf_image_type & IMG_ID_MASK);
+		if (!img_param_info) {
+			fastboot_fail("Failed to get img parameters", response);
+			return;
+		}
+		/* Convert srec to bin, before flashing */
+		if (hf_image_type & IMG_SREC_MASK) {
+			hf_buffer_size = img_param_info->total_size;
+			bin_buffer = malloc(hf_buffer_size);
+			if (!bin_buffer) {
+				fastboot_fail("Failed to allocate bin buffer", response);
+				return;
+			}
+
+			hf_buffer_size = srec_to_bin(download_buffer, bin_buffer,
+			    hf_buffer_size);
+			if (!hf_buffer_size) {
+				fastboot_fail("Failed to convert srec to bin", response);
+				free(bin_buffer);
+				return;
+			}
+		} else {
+			hf_buffer_size = download_bytes;
+			bin_buffer = download_buffer;
+		}
+
+		if (hf_write_image(img_param_info, bin_buffer, hf_buffer_size))
+			fastboot_fail("Failed to write to HyperFlash", response);
+		else
+			fastboot_okay(NULL, response);
+
+
+		if (hf_image_type & IMG_SREC_MASK)
+			free(bin_buffer);
+
 		return;
 	}
 #endif

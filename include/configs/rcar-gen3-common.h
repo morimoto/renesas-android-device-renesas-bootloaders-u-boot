@@ -134,6 +134,15 @@ struct img_param {
 struct img_param *get_img_params(enum hf_images image_id);
 unsigned srec_to_bin(char *inbuf, char *outbuf, unsigned maxbin);
 
+#define IMG_TYPE_UNKNOWN (0)
+
+#define IMG_ID_MASK (0x0000ffff)
+#define IMG_BIN_MASK (0x00010000)
+#define IMG_SREC_MASK (0x00020000)
+
+unsigned get_image_type(const char *name);
+int hf_write_image(struct img_param *img_param, void *buffer, unsigned size);
+
 #endif /* !__ASSEMBLY__ */
 
 /* Pseudo TA commands */
