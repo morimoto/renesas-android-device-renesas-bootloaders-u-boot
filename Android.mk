@@ -56,7 +56,7 @@ endif
 endif
 endif
 
-ifeq ($(TARGET_MMC_ONE_SLOT),true)
+ifeq ($(ANDROID_MMC_ONE_SLOT),true)
     UBOOT_KCFLAGS += -DANDROID_MMC_ONE_SLOT
 endif
 
