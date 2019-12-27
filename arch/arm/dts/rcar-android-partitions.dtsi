@@ -24,11 +24,13 @@
 				type = "raw";
 				size = <0x0 0x80000>; /* 0.5 MB */
 			};
+#ifndef CONFIG_OPTEE
 			pst {
 				title = "pst";
 				type = "raw";
 				size = <0x0 0x80000>; /* 0.5 MB */
 			};
+#endif
 			vbmeta {
 				title = "vbmeta";
 				slot = "_a";
@@ -70,11 +72,13 @@
 				type = "raw";
 				size = <0x0 0x80000>; /* 0.5 MB */
 			};
+#ifndef CONFIG_OPTEE
 			pst {
 				title = "pst";
 				type = "raw";
 				size = <0x0 0x80000>; /* 0.5 MB */
 			};
+#endif
 			vbmeta_a {
 				title = "vbmeta";
 				slot = "_a";
