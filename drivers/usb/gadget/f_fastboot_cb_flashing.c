@@ -17,10 +17,14 @@
 #include <android/bootloader.h>
 #include <asm/gpio.h>
 
-
+#ifdef CONFIG_OPTEE
+#include <tee.h>
+#else
 #define MMC_PERSISTENT_PART "pst"
 #define SHA2_BUF_SIZE 32
 #define MMC_PERSISTENT_OFFSET SHA2_BUF_SIZE
+#endif
+
 #define DRAM_BANK_MAIN	0
 /*We need to define max stack size for ram wipe*/
 #define MAX_STACK_SIZE 32768
@@ -316,7 +320,77 @@ static bool is_user_confirmed(void)
 	return false;
 }
 
-bool fastboot_get_unlock_ability(void)
+#ifdef CONFIG_OPTEE
+typedef enum {
+	GET_OEM_UNLOCK_ALLOWED_BY_CARRIER = 0,
+	SET_OEM_UNLOCK_ALLOWED_BY_CARRIER,
+	GET_OEM_UNLOCK_ALLOWED_BY_DEVICE,
+	SET_OEM_UNLOCK_ALLOWED_BY_DEVICE,
+} oemlock_command_t;
+
+#define OEM_LOCK_ABILITY_UUID \
+		{ 0xac6a5a79, 0x688d, 0x4ca7, \
+			{ 0x8c, 0xbb, 0x5c, 0x13, 0x33, 0x6a, 0xb4, 0x31 } }
+
+static bool fastboot_get_unlock_ability(void)
+{
+	struct udevice *tee = NULL;
+	struct tee_open_session_arg arg_ses;
+	const struct tee_optee_ta_uuid uuid = OEM_LOCK_ABILITY_UUID;
+	struct tee_invoke_arg arg;
+	struct tee_param param[4];
+	bool by_device = false;
+	bool by_carrier = false;
+
+	tee = tee_find_device(tee, NULL, NULL, NULL);
+	if (!tee) {
+		fastboot_fail("FAIL", " failed to find tee device");
+		return false;
+	}
+
+	memset(&arg_ses, 0, sizeof(arg_ses));
+	tee_optee_ta_uuid_to_octets(arg_ses.uuid, &uuid);
+	if (tee_open_session(tee, &arg_ses, 0, NULL)) {
+		fastboot_fail("FAIL", " failed to open session");
+		return false;
+	}
+
+	memset(&param[0], 0, sizeof(param));
+
+	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INOUT;
+
+	arg.func = GET_OEM_UNLOCK_ALLOWED_BY_DEVICE;
+	arg.session = arg_ses.session;
+
+	if (tee_invoke_func(tee, &arg, ARRAY_SIZE(param), param)) {
+		fastboot_fail("FAIL", " failed to invoke command");
+		tee_close_session(tee, arg_ses.session);
+		return false;
+	}
+
+	by_device = param[0].u.value.a;
+
+	memset(&param[0], 0, sizeof(param));
+
+	param[0].attr = TEE_PARAM_ATTR_TYPE_VALUE_INOUT;
+
+	arg.func = GET_OEM_UNLOCK_ALLOWED_BY_CARRIER;
+	arg.session = arg_ses.session;
+
+	if (tee_invoke_func(tee, &arg, ARRAY_SIZE(param), param)) {
+		fastboot_fail("FAIL", " failed to invoke command");
+		tee_close_session(tee, arg_ses.session);
+		return false;
+	}
+
+	by_carrier = param[0].u.value.a;
+
+	tee_close_session(tee, arg_ses.session);
+
+	return (by_device && by_carrier);
+}
+#else
+static bool fastboot_get_unlock_ability(void)
 {
 	int ret;
 	bool unlock = false;
@@ -375,6 +449,7 @@ bool fastboot_get_unlock_ability(void)
 
 	return unlock;
 }
+#endif
 
 void fastboot_cb_flashing(char *cmd, char *response)
 {
