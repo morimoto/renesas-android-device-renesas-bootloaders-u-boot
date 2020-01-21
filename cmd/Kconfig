@@ -2152,4 +2152,11 @@ config CMD_UBIFS
 	help
 	  UBIFS is a file system for flash devices which works on top of UBI.
 
+config CMD_HYPERFLASH
+	bool "Enable hf commands"
+	depends on OPTEE && RCAR_GEN3
+	default y if OPTEE && RCAR_GEN3
+	help
+	  Allows to flash HyperFlash and erase SecureStorage from shell.
+
 endmenu
