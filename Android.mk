@@ -33,8 +33,9 @@ UBOOT_OUT_ABS           := $(abspath $(UBOOT_OUT))
 UBOOT_BINARY            := $(UBOOT_OUT)/u-boot.bin
 UBOOT_SREC              := $(UBOOT_OUT)/u-boot-elf.srec
 
-UBOOT_KCFLAGS           := -fgnu89-inline
-UBOOT_ARCH_PARAMS       := HOST_TOOLCHAIN=$(BSP_GCC_HOST_TOOLCHAIN) CROSS_COMPILE=$(BSP_GCC_CROSS_COMPILE) ARCH=$(TARGET_ARCH)
+UBOOT_KCFLAGS           := -fgnu89-inline --sysroot=$(abspath prebuilts/gcc/linux-x86/aarch64/aarch64-linux-gnu/)
+UBOOT_ARCH_PARAMS       := HOSTCC=$(ANDROID_CLANG_TOOLCHAIN) CROSS_COMPILE=$(BSP_GCC_CROSS_COMPILE) ARCH=$(TARGET_ARCH)
+UBOOT_ARCH_PARAMS       += HOSTCFLAGS="-fuse-ld=lld" HOSTLDFLAGS=-fuse-ld=lld
 
 CLANGFLAGS              := -target aarch64-linux-gnu- --sysroot=$(abspath prebuilts/gcc/linux-x86/aarch64/aarch64-linux-gnu/)
 
@@ -78,7 +79,7 @@ UBOOT_CONFIG_CMD := $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) \
 UBOOT_BUILD_CMD := $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS)  KCFLAGS+="$(UBOOT_KCFLAGS)" all
 u-boot:
 	$(MKDIR) -p $(UBOOT_OUT_ABS)
-	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) mrproper
+	$(ANDROID_MAKE) $(UBOOT_ARCH_PARAMS) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) mrproper
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) $(TARGET_BOARD_PLATFORM)_$(TARGET_BOOTLOADER_BOARD_NAME)_defconfig
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) KCFLAGS+="$(UBOOT_KCFLAGS_ADSP)" KCFLAGS+="$(UBOOT_KCFLAGS)" -j `$(NPROC)`
 	cp -vF $(UBOOT_OUT_ABS)/u-boot.bin $(UBOOT_OUT_ABS)/u-boot-elf.srec $(PRODUCT_OUT_ABS)/
