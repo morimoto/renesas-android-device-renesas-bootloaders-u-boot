@@ -82,6 +82,7 @@ u-boot:
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) $(TARGET_BOARD_PLATFORM)_$(TARGET_BOOTLOADER_BOARD_NAME)_defconfig
 	$(UBOOT_ARCH_PARAMS) $(ANDROID_MAKE) -C $(UBOOT_SRC) O=$(UBOOT_OUT_ABS) KCFLAGS+="$(UBOOT_KCFLAGS_ADSP)" KCFLAGS+="$(UBOOT_KCFLAGS)" -j `$(NPROC)`
 	cp -vF $(UBOOT_OUT_ABS)/u-boot.bin $(UBOOT_OUT_ABS)/u-boot-elf.srec $(PRODUCT_OUT_ABS)/
+	cp -vF $(UBOOT_SRC)/drivers/video/renesas/logo/logo.argb $(PRODUCT_OUT_ABS)/
 
 scan-build-uboot:
 	@echo "Starting scan-build for UBOOT"
