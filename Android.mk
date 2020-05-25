@@ -53,13 +53,12 @@ ifeq ($(H3_OPTION),DYNAMIC)
 else
     UBOOT_KCFLAGS += -DRCAR_DRAM_MAP4_1
 endif
+endif
+endif
+endif
 
 ifeq ($(ENABLE_ADSP),true)
     UBOOT_KCFLAGS_ADSP = -DENABLE_ADSP
-endif
-
-endif
-endif
 endif
 
 UBOOT_SCAN_BUILD_CMD := $(abspath $(LLVM_PREBUILTS_PATH)/scan-build) \
