@@ -50,8 +50,8 @@
 #define CONFIG_SYS_MALLOC_LEN		(128 * 1024 * 1024)
 #define CONFIG_SYS_BOOTM_LEN		(64 << 20)
 
-/* The HF/QSPI layout permits up to 1 MiB large bootloader blob */
-#define CONFIG_BOARD_SIZE_LIMIT		1048576
+/* The HF/QSPI layout permits up to 2 MiB large bootloader blob */
+#define CONFIG_BOARD_SIZE_LIMIT		2097152
 
 /*This values are used for RAM autodetection only*/
 #define	BOARDCNF_8GBIT_1RANK	7	/* Board with H3 Ver.2.0 or later/SIP(8Gbit 1rank) */
