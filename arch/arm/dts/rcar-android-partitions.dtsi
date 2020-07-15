@@ -1,7 +1,7 @@
 /*
  * Device Tree Source overlay for Android partition table
  *
- * Copyright (C) 2019 GlobalLogic
+ * Copyright (C) 2019 - 2020 GlobalLogic
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -61,6 +61,18 @@
 			};
 			boot_b {
 				title = "boot";
+				slot = "_b";
+				type = "raw";
+				size = <0x0 0x2000000>; /* 32 MB */
+			};
+			vendor_boot_a {
+				title = "vendor_boot";
+				slot = "_a";
+				type = "raw";
+				size = <0x0 0x2000000>; /* 32 MB */
+			};
+			vendor_boot_b {
+				title = "vendor_boot";
 				slot = "_b";
 				type = "raw";
 				size = <0x0 0x2000000>; /* 32 MB */
