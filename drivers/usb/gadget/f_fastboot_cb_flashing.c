@@ -28,7 +28,7 @@
 #define DRAM_BANK_MAIN	0
 /*We need to define max stack size for ram wipe*/
 #define MAX_STACK_SIZE 32768
-#define UBOOT_RAM_SIZE 0x100000
+#define UBOOT_RAM_SIZE 0x200000
 DECLARE_GLOBAL_DATA_PTR;
 
 #define CONFIG_FASTBOOT_CB_PART CONFIG_SYS_MMC_ENV_PART
