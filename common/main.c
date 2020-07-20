@@ -48,6 +48,7 @@ static void load_android_bootloader_params(void)
 {
 	struct bootloader_message bcb;
 	char * bootmode = "android";
+	const char *reason;
 
 #if defined(CONFIG_FASTBOOT_BY_SW)
 struct confirm_pin_info *pin_info = gpio_get_user_confirm_pin();
@@ -86,8 +87,23 @@ if (!pin_info) {
 		if(set_bootloader_message(&bcb)) {
 			printf("Error writing bcb!\n");
 		}
-	} else if (strstr(bcb.command, "recovery") != NULL) {
-		bootmode = "recovery";
+	} else {
+		/*
+		* We need to check if this is normal boot or recovery
+		* The bcb may contain reason, subreason and details
+		* separated by comma delimiter. We need to check only
+		* "reason" field.
+		*/
+		reason = strchr(bcb.command, ',');
+		if (reason != NULL) {
+			reason = strtok(bcb.command, ",");
+		} else {
+			reason = bcb.command;
+		}
+
+		if (strstr(reason, "recovery") != NULL) {
+			bootmode = "recovery";
+		}
 	}
 
 	printf("Setting bootmode '%s'\n", bootmode);
