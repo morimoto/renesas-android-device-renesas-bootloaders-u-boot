@@ -52,7 +52,7 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 void *load_dt_table_from_part(struct blk_desc *dev_desc,
 				const char *dtb_part_name);
 
-void *load_dt_table_from_bootimage(struct andr_img_hdr *hdr);
+void *load_dt_table_from_vendorbootimage(struct vendor_boot_img_hdr_v3 *hdr);
 
 /*
  * Device tree ID <board id><SiP><revision>

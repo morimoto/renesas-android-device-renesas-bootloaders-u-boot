@@ -460,27 +460,15 @@ int boot_get_fdt(int flag, int argc, char * const argv[], uint8_t arch,
 		}
 #ifdef CONFIG_ANDROID_BOOT_IMAGE
 	} else if (genimg_get_format(buf) == IMAGE_FORMAT_ANDROID) {
-		struct andr_img_hdr *hdr = buf;
-		ulong fdt_data, fdt_len;
+		fdt_addr = env_get_hex("fdtaddr", 0);
+		if (!fdt_addr)
+			goto no_fdt;
 
-		if (!android_image_get_second(hdr, &fdt_data, &fdt_len) &&
-		    !fdt_check_header((char *)fdt_data)) {
-			fdt_blob = (char *)fdt_data;
-			if (fdt_totalsize(fdt_blob) != fdt_len)
-				goto error;
+		fdt_blob = map_sysmem(fdt_addr, 0);
+		if (fdt_check_header(fdt_blob))
+			goto no_fdt;
 
-			debug("## Using FDT in Android image second area\n");
-		} else {
-			fdt_addr = env_get_hex("fdtaddr", 0);
-			if (!fdt_addr)
-				goto no_fdt;
-
-			fdt_blob = map_sysmem(fdt_addr, 0);
-			if (fdt_check_header(fdt_blob))
-				goto no_fdt;
-
-			debug("## Using FDT at ${fdtaddr}=Ox%lx\n", fdt_addr);
-		}
+		debug("## Using FDT at ${fdtaddr}=Ox%lx\n", fdt_addr);
 #endif
 	} else {
 		debug("## No Flattened Device Tree\n");

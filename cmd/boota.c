@@ -12,6 +12,7 @@
 #include <mapmem.h>
 #include <linux/kernel.h>
 #include <linux/sizes.h>
+#include <linux/ctype.h>
 #include <mmc.h>
 #include <u-boot/zlib.h>
 #include <android_image.h>
@@ -34,7 +35,7 @@
  */
 
 /* Unpacked kernel image size must be no more than
- * andr_img_hdr.ramdisk_addr -  andr_img_hdr.kernel_addr,
+ * ramdisk_addr - kernel_addr,
  * else data will be partially erased
  */
 #define KERNEL_UNPACKED_LIMIT      0x1080000UL
@@ -334,38 +335,75 @@ static void set_bootreason_args(u32 addr) {
 }
 
 #define MMC_HEADER_SIZE 4 /*defnes header size in blocks*/
-int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
+int do_boot_android_img_from_ram(ulong boot_hdr_addr,
+		ulong vendor_boot_hdr_addr, ulong dtbo_addr)
 {
-	ulong kernel_offset, ramdisk_offset, size;
+	ulong kernel_offset, ramdisk_offset, vendor_ramdisk_offset, kernel_size,
+	ramdisk_size, vendor_ramdisk_size;
 	size_t dstn_size, kernel_space = KERNEL_UNPACKED_LIMIT;
-	struct andr_img_hdr *hdr = map_sysmem(hdr_addr, 0);
-	struct dt_table_header *dt_tbl = map_sysmem(dt_addr, 0);
-	struct dt_table_header *dto_tbl = map_sysmem(dto_addr, 0);
-	int ret;
+	struct boot_img_hdr_v3 *hdr_v3 = map_sysmem(boot_hdr_addr, 0);
+	struct vendor_boot_img_hdr_v3 *vendor_hdr_v3 =
+		map_sysmem(vendor_boot_hdr_addr, 0);
+	ulong dtb_addr =
+		(ulong)load_dt_table_from_vendorbootimage((void *)vendor_boot_hdr_addr);
+	struct dt_table_header *dt_tbl = map_sysmem(dtb_addr, 0);
+	struct dt_table_header *dtbo_tbl = map_sysmem(dtbo_addr, 0);
+	int ret = 0;
+
+	if(android_image_check_header(hdr_v3)) {
+		printf("Error: android boot header magic is invalid\n");
+		return CMD_RET_FAILURE;
+	}
+	if(hdr_v3->header_version != 3) {
+		printf("Error: android boot header version is invalid\n");
+		return CMD_RET_FAILURE;
+	}
+	if(vendor_image_check_header(vendor_hdr_v3)) {
+		printf("Error: vendor boot header magic is invalid\n");
+		return CMD_RET_FAILURE;
+	}
+	if(vendor_hdr_v3->header_version != 3) {
+		printf("Error: vendor boot header version is invalid\n");
+		return CMD_RET_FAILURE;
+	}
 
 	set_board_id_args(get_current_plat_id());
 	set_cpu_revision_args();
 	set_blkdevparts_args();
 	set_fakertc_args();
 
-	ret = android_image_get_kernel(hdr, 1, &kernel_offset, &size);
+	/* 1. kernel, ramdisk, vendor ramdisk, and DTB are required (size != 0) */
+	if (hdr_v3->kernel_size == 0 || hdr_v3->ramdisk_size == 0 ||
+			vendor_hdr_v3->vendor_ramdisk_size == 0 ||
+			vendor_hdr_v3->dtb_size == 0) {
+		printf("Error: kernel, ramdisk, vendor ramdisk or DTB are absent,"
+				"check images\n");
+		return CMD_RET_FAILURE;
+	}
+
+	ret = android_image_get_kernel(hdr_v3, vendor_hdr_v3, 1,
+			&kernel_offset, &kernel_size);
 	if (ret) {
 		printf("Error: can't extract kernel offset from "
 				"boot.img (%d)\n", ret);
 		return CMD_RET_FAILURE;
 	}
-	size = ALIGN(hdr->kernel_size, hdr->page_size);
-	dstn_size = size;
 
-	if (hdr->kernel_addr < hdr->ramdisk_addr)
-		kernel_space = hdr->ramdisk_addr - hdr->kernel_addr;
-	else if (hdr->kernel_addr < CONFIG_SYS_TEXT_BASE)
-		kernel_space = CONFIG_SYS_TEXT_BASE - hdr->kernel_addr;
+	/* All entities in the boot image are 4096-byte aligned in flash */
+	kernel_size = ALIGN(hdr_v3->kernel_size, BOOT_IMAGE_HEADER_V3_PAGESIZE);
+	dstn_size = kernel_size;
+
+	/* 2. load the kernel at the specified physical address (kernel_addr) */
+	if (vendor_hdr_v3->kernel_addr < vendor_hdr_v3->ramdisk_addr)
+		kernel_space = vendor_hdr_v3->ramdisk_addr - vendor_hdr_v3->kernel_addr;
+	else if (vendor_hdr_v3->kernel_addr < CONFIG_SYS_TEXT_BASE)
+		kernel_space = CONFIG_SYS_TEXT_BASE - vendor_hdr_v3->kernel_addr;
 
 	if(is_zipped((ulong) kernel_offset)) {
-		dstn_size = hdr->kernel_size;
-		ret = gunzip((void *)(ulong)hdr->kernel_addr, (int)kernel_space,
-						(unsigned char *)kernel_offset, (ulong*)&dstn_size);
+		dstn_size = hdr_v3->kernel_size;
+		ret = gunzip((void *)(ulong)vendor_hdr_v3->kernel_addr,
+				(int)kernel_space, (unsigned char *)kernel_offset,
+				(ulong*)&dstn_size);
 		if (ret) {
 			printf("Kernel unzip error: %d\n", ret);
 			return CMD_RET_FAILURE;
@@ -375,8 +413,8 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 #ifdef CONFIG_LZ4
 	if (is_lz4((ulong) kernel_offset)) {
 		dstn_size = kernel_space;
-		ret = ulz4fn((void *)kernel_offset, hdr->kernel_size,
-						(void *)(ulong)hdr->kernel_addr, &dstn_size);
+		ret = ulz4fn((void *)kernel_offset, hdr_v3->kernel_size,
+						(void *)(ulong)vendor_hdr_v3->kernel_addr, &dstn_size);
 		if (ret) {
 			printf("Kernel LZ4 decompression error: %d (decompressed "
 						"size: %zu bytes)\n",ret, dstn_size);
@@ -385,27 +423,57 @@ int do_boot_android_img_from_ram(ulong hdr_addr, ulong dt_addr, ulong dto_addr)
 			printf("LZ4 decompressed kernel image size: %zu\n", dstn_size);
 	} else
 #endif
-		memcpy((void *)(u64)hdr->kernel_addr,(void *)kernel_offset, dstn_size);
+		memcpy((void *)(u64)vendor_hdr_v3->kernel_addr,
+				(void *)kernel_offset, dstn_size);
 
 	printf("kernel offset = %lx, size = 0x%lx, address 0x%x\n", kernel_offset,
-				dstn_size, hdr->kernel_addr);
+				dstn_size, vendor_hdr_v3->kernel_addr);
 
+	/*The bootloader must load the generic ramdisk into memory immediately
+	 * following the vendor ramdisk. Both the CPIO and Gzip formats support
+	 * this type of concatenation. The result, after decompression and
+	 * unarchiving by the kernel into an initramfs , is the file structure
+	 * of the generic ramdisk overlaid on the vendor ramdisk file structure.*/
+
+	/* 3. load the vendor ramdisk at ramdisk_addr */
+	vendor_ramdisk_offset = (ulong)vendor_hdr_v3;
+	vendor_ramdisk_offset += ALIGN(VENDOR_BOOT_IMAGE_HEADER_V3_SIZE,
+			vendor_hdr_v3->page_size);
+	vendor_ramdisk_size = ALIGN(vendor_hdr_v3->vendor_ramdisk_size,
+			vendor_hdr_v3->page_size);
+
+	printf("vendor ramdisk offset = %lx, size = 0x%lx, address = 0x%x\n",
+			vendor_ramdisk_offset, vendor_ramdisk_size,
+			vendor_hdr_v3->ramdisk_addr);
+
+	if (vendor_hdr_v3->ramdisk_addr != vendor_ramdisk_offset)
+		memcpy((void *)(u64)vendor_hdr_v3->ramdisk_addr,
+				(void *)vendor_ramdisk_offset, vendor_ramdisk_size);
+
+	/* 4. load the generic ramdisk immediately following the vendor ramdisk
+	 * in memory (concatenate). This causes kernel to overlay boot ramdisk FS
+	 * on vendor ramdisk FS */
 	ramdisk_offset = kernel_offset;
-	ramdisk_offset += size;
-	size = ALIGN(hdr->ramdisk_size, hdr->page_size);
+	ramdisk_offset += kernel_size;
+	ramdisk_size = ALIGN(hdr_v3->ramdisk_size, BOOT_IMAGE_HEADER_V3_PAGESIZE);
 
-	printf("ramdisk offset = %lx, size = 0x%lx, address = 0x%x\n",
-				ramdisk_offset, size, hdr->ramdisk_addr);
+	printf("android ramdisk offset = %lx, size = 0x%lx, address = 0x%x\n",
+				ramdisk_offset, ramdisk_size, vendor_hdr_v3->ramdisk_addr +
+				vendor_hdr_v3->vendor_ramdisk_size);
 
-	if (hdr->ramdisk_addr != ramdisk_offset)
-		memcpy((void *)(u64)hdr->ramdisk_addr, (void *)ramdisk_offset, size);
+	if (vendor_hdr_v3->ramdisk_addr + vendor_ramdisk_size != ramdisk_offset)
+		memcpy((void *)(u64)(vendor_hdr_v3->ramdisk_addr +
+				vendor_hdr_v3->vendor_ramdisk_size),
+				(void *)ramdisk_offset, ramdisk_size);
 
-
-	ret = load_dt_with_overlays((struct fdt_header *)(u64)hdr->dtb_addr, dt_tbl, dto_tbl);
-	fdt_fixup_kaslr((void *)(u64)hdr->dtb_addr);
+	/* 2. load the DTB at the specified physical address (dtb_addr) */
+	ret = load_dt_with_overlays(
+			(struct fdt_header *)(u64)vendor_hdr_v3->dtb_addr,
+			dt_tbl, dtbo_tbl);
+	fdt_fixup_kaslr((void *)(u64)vendor_hdr_v3->dtb_addr);
 
 	if (!ret)
-		set_bootreason_args(hdr->dtb_addr);
+		set_bootreason_args(vendor_hdr_v3->dtb_addr);
 
 	return ret;
 }
@@ -429,12 +497,16 @@ static char *hex_to_str(u8 *data, size_t size)
 }
 
 #define MAX_BOOTI_ARGC 4
-static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
-	struct andr_img_hdr *hdr = map_sysmem(addr, 0);
+static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC])
+{
+	struct vendor_boot_img_hdr_v3 *hdr = map_sysmem(addr, 0);
 
-	argv[1] = avb_strdup(hex_to_str((u8 *)&hdr->kernel_addr, sizeof(hdr->kernel_addr)));
-	argv[2] = avb_strdup(hex_to_str((u8 *)&hdr->ramdisk_addr, sizeof(hdr->ramdisk_addr)));
-	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->dtb_addr, sizeof(hdr->dtb_addr)));
+	argv[1] = avb_strdup(hex_to_str((u8 *)&hdr->kernel_addr,
+			sizeof(hdr->kernel_addr)));
+	argv[2] = avb_strdup(hex_to_str((u8 *)&hdr->ramdisk_addr,
+			sizeof(hdr->ramdisk_addr)));
+	argv[3] = avb_strdup(hex_to_str((u8 *)&hdr->dtb_addr,
+			sizeof(hdr->dtb_addr)));
 }
 
 /*
@@ -451,7 +523,8 @@ static void build_new_args(ulong addr, char *argv[MAX_BOOTI_ARGC]) {
 
 void do_correct_boot_address(ulong hdr_addr)
 {
-	struct andr_img_hdr *hdr = map_sysmem(hdr_addr, 0);
+	struct vendor_boot_img_hdr_v3 *hdr = map_sysmem(hdr_addr, 0);
+
 	hdr->kernel_addr = VIRT_SYS_LOAD_ADDR;
 	hdr->ramdisk_addr = DEFAULT_RD_ADDR;
 	hdr->dtb_addr = DEFAULT_SECOND_ADDR;
@@ -501,19 +574,20 @@ int inc_metadata_tries_remaining(AvbABOps* ab_ops) {
 }
 
 #define DEFAULT_AVB_DELAY 5
-int avb_main(int boot_device, char **argv)
+int avb_main(int boot_device, char *argv[MAX_BOOTI_ARGC])
 {
 	AvbOps *ops;
 	AvbABFlowResult ab_result;
 	AvbSlotVerifyData *slot_data;
-	const char *requested_partitions[] = {"boot", "dtbo", NULL};
+	const char *requested_partitions[] = {"boot", "vendor_boot", "dtbo", NULL};
 	bool unlocked = false;
 	char *cmdline = NULL;
 	bool abort = false;
 	int boot_delay;
 	unsigned long ts;
 	const char *avb_delay  = env_get("avb_delay");
-	AvbPartitionData *avb_boot_part = NULL, *avb_dtbo_part = NULL, avb_ram_data;
+	AvbPartitionData *avb_boot_part = NULL, *avb_vendor_boot_part = NULL,
+			*avb_dtbo_part = NULL, avb_ram_data;
 	AvbSlotVerifyFlags flags = AVB_SLOT_VERIFY_FLAGS_NONE;
 
 	boot_delay = avb_delay ? (int)simple_strtol(avb_delay, NULL, 10)
@@ -546,8 +620,9 @@ int avb_main(int boot_device, char **argv)
 		*/
 		printf("setting ram partition..\n");
 		if (unlocked) {
-			requested_partitions[0] = "dtbo";
-			requested_partitions[1] = NULL;
+			requested_partitions[0] = "vendor_boot";
+			requested_partitions[1] = "dtbo";
+			requested_partitions[2] = NULL;
 
 			avb_ram_data.partition_name = VIRT_BOOT_PARTITION;
 			avb_ram_data.data = (uint8_t*)simple_strtol(argv[0], NULL, 16);
@@ -633,31 +708,41 @@ int avb_main(int boot_device, char **argv)
 			break;
 		}
 
-		if (!avb_boot_part)
-			*argv = hex_to_str((u8 *)&slot_data->loaded_partitions->data, sizeof(ulong));
-
 		AvbPartitionData *avb_part = slot_data->loaded_partitions;
-
 		for(int i = 0; i < slot_data->num_loaded_partitions; i++, avb_part++)
 		{
-			if (!avb_boot_part &&
-			    !strncmp(avb_part->partition_name, "boot", 4)) {
-					avb_boot_part = avb_part;
+			if (!avb_boot_part && !strncmp(avb_part->partition_name, "boot", 4)) {
+				avb_boot_part = avb_part;
+			} else if (strncmp(avb_part->partition_name, "vendor_boot", 11) == 0) {
+				avb_vendor_boot_part = avb_part;
 			} else if (strncmp(avb_part->partition_name, "dtbo", 4) == 0) {
 				avb_dtbo_part = avb_part;
 			}
 		}
 
-		if (avb_boot_part == NULL || avb_dtbo_part == NULL) {
+		if (avb_boot_part == NULL
+				|| avb_vendor_boot_part == NULL
+				|| avb_dtbo_part == NULL) {
 			if (avb_boot_part == NULL) {
-				avb_fatal("Boot partition is not found\n");
+				avb_fatal("Android boot partition is not found\n");
+			}
+			if (avb_vendor_boot_part == NULL) {
+				avb_fatal("Vendor boot partition is not found\n");
 			}
 			if (avb_dtbo_part == NULL) {
-				avb_fatal("dtbo partition is not found\n");
+				avb_fatal("Dtbo partition is not found\n");
 			}
 		} else {
+
+			/* Return boot image structure pointer */
+			argv[0] = avb_strdup(hex_to_str((u8 *)&avb_boot_part->data,
+					sizeof(ulong)));
+			/* Return vendor boot image structure pointer */
+			argv[1] = avb_strdup(hex_to_str((u8 *)&avb_vendor_boot_part->data,
+					sizeof(ulong)));
+
 			return do_boot_android_img_from_ram((ulong)avb_boot_part->data,
-							(ulong)load_dt_table_from_bootimage((void *)avb_boot_part->data),
+							(ulong)avb_vendor_boot_part->data,
 							(ulong)avb_dtbo_part->data);
 		}
 
@@ -678,8 +763,9 @@ int avb_main(int boot_device, char **argv)
 	return 0;
 }
 
-int do_boot_avb(int device, char **argv)
+int do_boot_avb(int device, char *argv[MAX_BOOTI_ARGC])
 {
+	printf("AVB verification is ON ..\n");
 	return avb_main(device, argv);
 }
 
@@ -687,18 +773,18 @@ int do_boot_avb(int device, char **argv)
 #define RAM_PARTITION "RAM" /*This is virtual partition when image is in RAM*/
 int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 {
-	struct mmc *mmc;
+	struct mmc *mmc = NULL;
 	const int user_part = 0;
 	int dev = 0, ret = CMD_RET_FAILURE;
-	ulong addr;
+	ulong addr = 0, vendor_addr = 0;
 	char *boot_part = NULL;
 	bool load = true;
 	char *new_argv[MAX_BOOTI_ARGC];
 
-	new_argv[0] = argv[0];
+	new_argv[0] = argv[0]; /* boota */
 	argc--; argv++;
 
-	if (argc < 3) {
+	if (argc < 2) {
 		return CMD_RET_USAGE;
 	}
 
@@ -706,14 +792,16 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 	argc--; argv++;
 
 	boot_part = argv[0];
-	printf("AVB verification is ON ..\n");
-	argc--; argv++;
-
-	if (boot_part && !strncmp(boot_part, RAM_PARTITION, sizeof(RAM_PARTITION))) {
-		load = false;
+	if (isalpha(*boot_part)) {
+		/* Present optional argument 'mmc_part' */
+		argc--; argv++;
+		if (boot_part && !strncmp(boot_part, RAM_PARTITION, sizeof(RAM_PARTITION))) {
+			load = false;
+		}
 	}
 
 	addr = simple_strtoul(argv[0], NULL, 16);
+
 	if (load) {
 		printf("Looking for mmc device ..\n");
 		mmc = find_mmc_device(dev);
@@ -737,7 +825,10 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 
 	ret = do_boot_avb(dev, &new_argv[1]);
 	if (ret == CMD_RET_SUCCESS) {
+		/* Android boot image structure pointer */
 		addr = simple_strtoul(new_argv[1], NULL, 16);
+		/* Vendor boot image structure pointer */
+		vendor_addr = simple_strtoul(new_argv[2], NULL, 16);
 	}
 
 	if(ret != CMD_RET_SUCCESS) {
@@ -745,9 +836,10 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		return ret;
 	}
 
-	build_new_args(addr, new_argv);
+	build_new_args(vendor_addr, new_argv);
 	argc = MAX_BOOTI_ARGC;
-	images.os.start = addr;
+	images.os.start = addr; /* Android boot image */
+	images.vendor_boot_start = vendor_addr; /* Vendor boot image */
 	return do_booti(cmdtp, flag, argc, new_argv);
 }
 

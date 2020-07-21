@@ -146,7 +146,7 @@ static void write_raw_image(struct blk_desc *dev_desc, disk_partition_t *info,
  */
 static lbaint_t fb_mmc_get_boot_header(struct blk_desc *dev_desc,
 				       disk_partition_t *info,
-				       struct andr_img_hdr *hdr,
+				       struct boot_img_hdr_v3 *hdr,
 				       char *response)
 {
 	ulong sector_size;		/* boot partition sector size */
@@ -155,7 +155,7 @@ static lbaint_t fb_mmc_get_boot_header(struct blk_desc *dev_desc,
 
 	/* Calculate boot image sectors count */
 	sector_size = info->blksz;
-	hdr_sectors = DIV_ROUND_UP(sizeof(struct andr_img_hdr), sector_size);
+	hdr_sectors = DIV_ROUND_UP(sizeof(struct boot_img_hdr_v3), sector_size);
 	if (hdr_sectors == 0) {
 		pr_err("invalid number of boot sectors: 0\n");
 		fastboot_fail("invalid number of boot sectors: 0", response);
@@ -197,7 +197,7 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
 				char *response)
 {
 	uintptr_t hdr_addr;			/* boot image header address */
-	struct andr_img_hdr *hdr;		/* boot image header */
+	struct boot_img_hdr_v3 *hdr;			/* boot image header */
 	lbaint_t hdr_sectors;			/* boot image header sectors */
 	u8 *ramdisk_buffer;
 	u32 ramdisk_sector_start;
@@ -220,7 +220,7 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
 
 	/* Put boot image header in fastboot buffer after downloaded zImage */
 	hdr_addr = (uintptr_t)download_buffer + ALIGN(download_bytes, PAGE_SIZE);
-	hdr = (struct andr_img_hdr *)hdr_addr;
+	hdr = (struct boot_img_hdr_v3 *)hdr_addr;
 
 	/* Read boot image header */
 	hdr_sectors = fb_mmc_get_boot_header(dev_desc, &info, hdr, response);
@@ -230,21 +230,14 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
 		return -1;
 	}
 
-	/* Check if boot image has second stage in it (we don't support it) */
-	if (hdr->second_size > 0) {
-		pr_err("moving second stage is not supported yet\n");
-		fastboot_fail("moving second stage is not supported yet",
-			      response);
-		return -1;
-	}
-
 	/* Extract ramdisk location */
-	sectors_per_page = hdr->page_size / info.blksz;
+	/* All entities in the boot image are 4096-byte aligned in flash */
+	sectors_per_page = BOOT_IMAGE_HEADER_V3_PAGESIZE / info.blksz;
 	ramdisk_sector_start = info.start + sectors_per_page;
-	ramdisk_sector_start += DIV_ROUND_UP(hdr->kernel_size, hdr->page_size) *
-					     sectors_per_page;
-	ramdisk_sectors = DIV_ROUND_UP(hdr->ramdisk_size, hdr->page_size) *
-				       sectors_per_page;
+	ramdisk_sector_start += DIV_ROUND_UP(hdr->kernel_size,
+			BOOT_IMAGE_HEADER_V3_PAGESIZE) * sectors_per_page;
+	ramdisk_sectors = DIV_ROUND_UP(hdr->ramdisk_size,
+			BOOT_IMAGE_HEADER_V3_PAGESIZE) * sectors_per_page;
 
 	/* Read ramdisk and put it in fastboot buffer after boot image header */
 	ramdisk_buffer = (u8 *)hdr + (hdr_sectors * info.blksz);
@@ -268,8 +261,8 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
 
 	/* Write the new downloaded kernel */
 	kernel_sector_start = info.start + sectors_per_page;
-	kernel_sectors = DIV_ROUND_UP(hdr->kernel_size, hdr->page_size) *
-				      sectors_per_page;
+	kernel_sectors = DIV_ROUND_UP(hdr->kernel_size,
+			BOOT_IMAGE_HEADER_V3_PAGESIZE) * sectors_per_page;
 	res = blk_dwrite(dev_desc, kernel_sector_start, kernel_sectors,
 			 download_buffer);
 	if (res == 0) {
@@ -280,8 +273,8 @@ static int fb_mmc_update_zimage(struct blk_desc *dev_desc,
 
 	/* Write the saved ramdisk back */
 	ramdisk_sector_start = info.start + sectors_per_page;
-	ramdisk_sector_start += DIV_ROUND_UP(hdr->kernel_size, hdr->page_size) *
-					     sectors_per_page;
+	ramdisk_sector_start += DIV_ROUND_UP(hdr->kernel_size,
+			BOOT_IMAGE_HEADER_V3_PAGESIZE) * sectors_per_page;
 	res = blk_dwrite(dev_desc, ramdisk_sector_start, ramdisk_sectors,
 			 ramdisk_buffer);
 	if (res == 0) {

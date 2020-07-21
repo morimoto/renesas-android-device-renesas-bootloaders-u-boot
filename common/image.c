@@ -1000,6 +1000,8 @@ int genimg_get_format(const void *img_addr)
 #ifdef CONFIG_ANDROID_BOOT_IMAGE
 	if (android_image_check_header(img_addr) == 0)
 		return IMAGE_FORMAT_ANDROID;
+	if (vendor_image_check_header(img_addr) == 0)
+		return IMAGE_FORMAT_VENDOR;
 #endif
 
 	return IMAGE_FORMAT_INVALID;
@@ -1182,8 +1184,8 @@ int boot_get_ramdisk(int argc, char * const argv[], bootm_headers_t *images,
 #endif
 #ifdef CONFIG_ANDROID_BOOT_IMAGE
 		case IMAGE_FORMAT_ANDROID:
-			android_image_get_ramdisk((void *)images->os.start,
-				&rd_data, &rd_len);
+			concatenated_image_get_ramdisk((void *)images->os.start,
+					(void *)images->vendor_boot_start, &rd_data, &rd_len);
 			break;
 #endif
 		default:
