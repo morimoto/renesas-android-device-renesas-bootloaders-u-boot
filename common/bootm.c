@@ -38,7 +38,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-bootm_headers_t images;		/* pointers to os/initrd/fdt images */
+bootm_headers_t images;		/* pointers to os/initrd/fdt/vendor images */
 
 static const void *boot_get_kernel(cmd_tbl_t *cmdtp, int flag, int argc,
 				   char * const argv[], bootm_headers_t *images,
@@ -403,7 +403,6 @@ static int bootm_load_os(bootm_headers_t *images, int boot_progress)
 ulong bootm_disable_interrupts(void)
 {
 	ulong iflag;
-
 	/*
 	 * We have reached the point of no return: we are going to
 	 * overwrite all exception vector code, so we cannot easily
@@ -790,7 +789,7 @@ static const void *boot_get_kernel(cmd_tbl_t *cmdtp, int flag, int argc,
 #ifdef CONFIG_ANDROID_BOOT_IMAGE
 	case IMAGE_FORMAT_ANDROID:
 		printf("## Booting Android Image at 0x%08lx ...\n", img_addr);
-		if (android_image_get_kernel(buf, images->verify,
+		if (android_image_get_kernel(buf, NULL, images->verify,
 					     os_data, os_len))
 			return NULL;
 		break;

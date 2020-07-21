@@ -851,49 +851,31 @@ void *load_dt_table_from_part(struct blk_desc *dev_desc, const char *dtb_part_na
 
 /*
  * +---------------------+
- * | boot header         | 1 page
+ * | vendor boot header  | o pages
  * +---------------------+
- * | kernel              | n pages
- * +---------------------+
- * | ramdisk             | m pages
- * +---------------------+
- * | second stage        | o pages
- * +---------------------+
- * | recovery dtbo/acpio | p pages
+ * | vendor ramdisk      | p pages
  * +---------------------+
  * | dtb                 | q pages
  * +---------------------+
 
- * n = (kernel_size + page_size - 1) / page_size
- * m = (ramdisk_size + page_size - 1) / page_size
- * o = (second_size + page_size - 1) / page_size
- * p = (recovery_dtbo_size + page_size - 1) / page_size
+ * o = (2112 + page_size - 1) / page_size
+ * p = (vendor_ramdisk_size + page_size - 1) / page_size
  * q = (dtb_size + page_size - 1) / page_size
  */
-void *load_dt_table_from_bootimage(struct andr_img_hdr *hdr)
+void *load_dt_table_from_vendorbootimage(struct vendor_boot_img_hdr_v3 *hdr)
 {
-	uint32_t page_size = 0;
 	uint8_t *dt_addr = (uint8_t *)hdr;
 
 	if (!dt_addr) {
-		printf("ERROR: android boot image header addr is NULL\n");
+		printf("ERROR: vendor boot image header addr is NULL\n");
 		return dt_addr;
 	}
 
-	page_size = hdr->page_size;
-
-	/* NOTE: all addresses are aligned to page_size (2048 bytes by default)*/
-	/* bootimage header 1 page */
-	/* kernel_start_addr = start_addr + page_size */
-	dt_addr += page_size;
-	/* ramdisk_start_addr = (kernel_start_addr + kernel_size) */
-	dt_addr += ALIGN(hdr->kernel_size, page_size);
-	/* second_stage_bl_start = (ramdisk_start_addr + ramdisk_size) */
-	dt_addr += ALIGN(hdr->ramdisk_size, page_size);
-	/* recovery_dtbo_start = (second_stage_bl_start + second_stage_bl_size) */
-	dt_addr += ALIGN(hdr->second_size, page_size);
-	/* dtb_start = (recovery_dtbo_start + recovery_dtbo_size)*/
-	dt_addr += ALIGN(hdr->recovery_dtbo_size, page_size);
+	/* All entities in the vendor boot image are page_size (2048)
+	 * (determined by the vendor and specified in the vendor boot image header)
+	 * aligned in flash */
+	dt_addr += ALIGN(VENDOR_BOOT_IMAGE_HEADER_V3_SIZE, hdr->page_size);
+	dt_addr += ALIGN(hdr->vendor_ramdisk_size, hdr->page_size);
 
 	return (void *)dt_addr;
 }

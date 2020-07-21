@@ -26,6 +26,7 @@ static int booti_start(cmd_tbl_t *cmdtp, int flag, int argc,
 	ulong image_size;
 #if defined(CONFIG_RCAR_GEN3)
 	ulong os_start = images->os.start;
+	ulong vendor_start = images->vendor_boot_start;
 #endif
 
 	ret = do_bootm_states(cmdtp, flag, argc, argv, BOOTM_STATE_START,
@@ -59,6 +60,7 @@ static int booti_start(cmd_tbl_t *cmdtp, int flag, int argc,
 
 #if defined(CONFIG_RCAR_GEN3)
 	images->os.start = os_start;
+	images->vendor_boot_start = vendor_start;
 #endif
 
 	/*

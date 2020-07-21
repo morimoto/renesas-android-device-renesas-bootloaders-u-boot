@@ -283,6 +283,11 @@ static int image_info(ulong addr)
 		android_print_contents(hdr);
 		unmap_sysmem(hdr);
 		return 0;
+	case IMAGE_FORMAT_VENDOR:
+		puts("   Vendor image found\n");
+		vendor_print_contents(hdr);
+		unmap_sysmem(hdr);
+		return 0;
 #endif
 #if defined(CONFIG_FIT)
 	case IMAGE_FORMAT_FIT:

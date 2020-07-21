@@ -381,6 +381,8 @@ typedef struct bootm_headers {
 
 	ulong		rd_start, rd_end;/* ramdisk start/end */
 
+	ulong		vendor_boot_start;/* vendor boot image start */
+
 	char		*ft_addr;	/* flat dev tree address */
 	ulong		ft_len;		/* length of flat device tree */
 
@@ -568,6 +570,7 @@ int boot_get_setup(bootm_headers_t *images, uint8_t arch, ulong *setup_start,
 #endif
 #define IMAGE_FORMAT_FIT	0x02	/* new, libfdt based format */
 #define IMAGE_FORMAT_ANDROID	0x03	/* Android boot image */
+#define IMAGE_FORMAT_VENDOR	0x04	/* Vendor boot image */
 
 ulong genimg_get_kernel_addr_fit(char * const img_addr,
 			         const char **fit_uname_config,
@@ -1325,18 +1328,21 @@ static inline int fit_image_check_target_arch(const void *fdt, int node)
 #endif /* CONFIG_FIT */
 
 #if defined(CONFIG_ANDROID_BOOT_IMAGE)
-struct andr_img_hdr;
-int android_image_check_header(const struct andr_img_hdr *hdr);
-int android_image_get_kernel(const struct andr_img_hdr *hdr, int verify,
-			     ulong *os_data, ulong *os_len);
-int android_image_get_ramdisk(const struct andr_img_hdr *hdr,
-			      ulong *rd_data, ulong *rd_len);
-int android_image_get_second(const struct andr_img_hdr *hdr,
-			      ulong *second_data, ulong *second_len);
-ulong android_image_get_end(const struct andr_img_hdr *hdr);
-ulong android_image_get_kload(const struct andr_img_hdr *hdr);
-ulong android_image_get_kcomp(const struct andr_img_hdr *hdr);
-void android_print_contents(const struct andr_img_hdr *hdr);
+struct boot_img_hdr_v3;
+struct vendor_boot_img_hdr_v3;
+int android_image_check_header(const struct boot_img_hdr_v3 *hdr);
+int vendor_image_check_header(const struct vendor_boot_img_hdr_v3 *hdr);
+int android_image_get_kernel(const struct boot_img_hdr_v3 *hdr,
+		const struct vendor_boot_img_hdr_v3 *vhdr, int verify,
+		ulong *os_data, ulong *os_len);
+int concatenated_image_get_ramdisk(const struct boot_img_hdr_v3 *hdr,
+		const struct vendor_boot_img_hdr_v3 *vhdr,
+		ulong *rd_data, ulong *rd_len);
+ulong android_image_get_end(const struct boot_img_hdr_v3 *hdr);
+ulong android_image_get_kload(const struct vendor_boot_img_hdr_v3 *hdr);
+ulong android_image_get_kcomp(const struct boot_img_hdr_v3 *hdr);
+void android_print_contents(const struct boot_img_hdr_v3 *hdr);
+void vendor_print_contents(const struct vendor_boot_img_hdr_v3 *hdr);
 
 #endif /* CONFIG_ANDROID_BOOT_IMAGE */
 
