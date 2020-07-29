@@ -93,22 +93,12 @@ static int cb_current_slot(char *buf, int buf_size)
 
 static int cb_slot_suffixes(char *buf, int buf_size)
 {
-	return snprintf(buf, buf_size,
-#ifdef ANDROID_MMC_ONE_SLOT
-	"a");
-#else
-	"a,b");
-#endif
+	return snprintf(buf, buf_size, "a,b");
 }
 
 static int cb_slot_count(char *buf, int buf_size)
 {
-	return snprintf(buf, buf_size,
-#ifdef ANDROID_MMC_ONE_SLOT
-	"1");
-#else
-	"2");
-#endif
+	return snprintf(buf, buf_size, "2");
 }
 
 static int cb_secure(char *buf, int buf_size)

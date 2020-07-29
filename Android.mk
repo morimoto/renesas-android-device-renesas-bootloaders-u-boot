@@ -62,10 +62,6 @@ endif
 endif
 endif
 
-ifeq ($(ANDROID_MMC_ONE_SLOT),true)
-    UBOOT_KCFLAGS += -DANDROID_MMC_ONE_SLOT
-endif
-
 UBOOT_SCAN_BUILD_CMD := $(abspath $(LLVM_PREBUILTS_PATH)/scan-build) \
 	-o $(OUT_DIR)/sb-reports/u-boot \
 	--use-analyzer=$(abspath $(LLVM_PREBUILTS_PATH)/clang)

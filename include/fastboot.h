@@ -17,11 +17,7 @@
 
 #define FASTBOOT_VERSION	"0.4"
 
-#ifdef ANDROID_MMC_ONE_SLOT
-#define ANDROID_PARTITIONS_PATH	"/android/partitions_oneslot"
-#else
 #define ANDROID_PARTITIONS_PATH	"/android/partitions"
-#endif
 
 /* The 64 defined bytes plus \0 */
 #define FASTBOOT_COMMAND_LEN	(64 + 1)
