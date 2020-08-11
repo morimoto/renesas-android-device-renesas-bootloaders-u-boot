@@ -101,6 +101,7 @@ int ft_board_setup(void *blob, bd_t *bd)
 
 	return 0;
 }
+#endif
 
 void rcar_preset_env(void)
 {
@@ -530,5 +531,4 @@ unsigned srec_to_bin(char *inbuf, char *outbuf, unsigned maxbin)
 }
 #endif
 
-#endif
 #endif
