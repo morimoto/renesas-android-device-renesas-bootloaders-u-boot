@@ -21,6 +21,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include <avb_verify.h>
 
 #include "avb_ab/avb_ab_flow.h"
 
@@ -562,3 +563,57 @@ const char* avb_ab_flow_result_to_string(AvbABFlowResult result) {
 
 	return ret;
 }
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+void init_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
+	ab_msg->magic = MISC_VIRTUAL_AB_MAGIC_HEADER;
+	ab_msg->version = MAX_VIRTUAL_AB_MESSAGE_VERSION;
+	ab_msg->merge_status = VIRTUAL_AB_NONE;
+	ab_msg->source_slot = avb_get_slot_index();
+}
+
+bool validate_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
+	return ((ab_msg->magic == MISC_VIRTUAL_AB_MAGIC_HEADER) &&
+			(ab_msg->version <= MAX_VIRTUAL_AB_MESSAGE_VERSION) &&
+			(ab_msg->merge_status <= VIRTUAL_AB_CANCELLED) &&
+			(ab_msg->source_slot < AVB_AB_MAX_SLOTS));
+}
+
+bool load_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
+	int ret;
+	size_t bytes_read = 0;
+
+	ret = read_from_part(CONFIG_FASTBOOT_FLASH_MMC_DEV, "misc",
+			SYSTEM_SPACE_OFFSET_IN_MISC, sizeof(*ab_msg),
+			ab_msg, &bytes_read);
+
+	if (ret || (bytes_read != sizeof(*ab_msg)))
+		return false;
+
+	if(!validate_virtual_ab_msg(ab_msg)){
+		printf("Invalid Virtual A/B message in /misc, re-init this...");
+		init_virtual_ab_msg(ab_msg);
+		return save_virtual_ab_msg(ab_msg);
+	}
+
+	return true;
+
+}
+
+bool virtual_ab_is_in_progress(void) {
+	struct misc_virtual_ab_message ab_data;
+
+	if (!load_virtual_ab_msg(&ab_data)) {
+		printf("Failed to load /misc from MMC in %s\n", __func__);
+		return false;
+	}
+
+	/*
+	 * Merge is in progress or we are now load updated and
+	 * snapshoted images. Userdata or metadata erase prohibited.
+	 */
+	return (ab_data.merge_status == VIRTUAL_AB_MERGING) ||
+		((ab_data.merge_status == VIRTUAL_AB_SNAPSHOTED) &&
+		(ab_data.source_slot != avb_get_slot_index()));
+}
+#endif
+

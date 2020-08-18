@@ -263,6 +263,55 @@ AvbABFlowResult avb_ab_get_metadata(AvbABOps* ab_ops, AvbABData *ab_data);
 /*This function is made public to support fastboot variables*/
 bool slot_is_bootable(AvbABSlotData* slot);
 
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+enum MergeStatus {
+	/*
+	 * No snapshot or merge is in progress.
+	 */
+	VIRTUAL_AB_NONE,
+
+	/*
+	 * The merge status could not be determined.
+	 */
+	VIRTUAL_AB_UNKNOWN,
+
+	/*
+	 * Partitions are being snapshotted, but no merge has been started.
+	 */
+	VIRTUAL_AB_SNAPSHOTED,
+
+	/*
+	 * At least one partition has merge is in progress.
+	 */
+	VIRTUAL_AB_MERGING,
+
+	/*
+	 * A merge was in progress, but it was canceled by the bootloader.
+	 */
+	VIRTUAL_AB_CANCELLED
+};
+
+struct misc_virtual_ab_message {
+  uint8_t version;
+  uint32_t magic;
+  uint8_t merge_status;
+  uint8_t source_slot; /* Slot number when merge_status was written. */
+  uint8_t reserved[57];
+} __attribute__((packed));
+
+#define SYSTEM_SPACE_OFFSET_IN_MISC 32 * 1024
+
+#define MAX_VIRTUAL_AB_MESSAGE_VERSION 2
+#define MISC_VIRTUAL_AB_MAGIC_HEADER 0x56740AB0
+#define AVB_AB_MAX_SLOTS 2
+
+/*
+ * This function checks if Virtual A/B update is in progress. Until it
+ * will not be finished we can not format userdata and metadata partitions.
+ */
+bool virtual_ab_is_in_progress(void);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
