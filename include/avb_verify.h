@@ -57,6 +57,8 @@ enum mmc_io_type {
 AvbOps *avb_ops_alloc(int boot_device);
 void avb_ops_free(AvbOps *ops);
 
+int avb_get_slot_index(void);
+
 char *avb_set_state(AvbOps *ops, enum avb_boot_state boot_state);
 char *avb_set_enforce_verity(const char *cmdline);
 char *avb_set_ignore_corruption(const char *cmdline);
