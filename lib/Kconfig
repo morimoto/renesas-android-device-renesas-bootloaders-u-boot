@@ -345,6 +345,15 @@ config LIBAVB_SHA256_V8_EXT
 	default n
 	help
 	  This enables support of SHA-224/SHA-256 transform using v8 Crypto Extensions.
+
+config ANDROID_VIRTUAL_AB_UPDATE
+	bool "Android Virtual A/B support"
+	depends on LIBAVB_AB
+	default n
+	help
+	  This enables logic, required for Android Virtual A/B feature such as
+	  userdata and metadata erase/format prohibition while update is in
+	  progress.
 endif #LIBAVB
 
 endmenu
