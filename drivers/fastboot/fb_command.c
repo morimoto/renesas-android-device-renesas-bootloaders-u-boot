@@ -336,6 +336,21 @@ static void flash(char *cmd_parameter, char *response)
 			return;
 		}
 	}
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+	/*
+	 * Need to protect userdata and metadata from formatting
+	 * while Virtual A/B update is in progress. 'fastboot format'
+	 * just flash empty partition image.
+	 */
+	if (!strcmp(cmd_parameter, "userdata") ||
+		!strcmp(cmd_parameter, "metadata")) {
+		if (virtual_ab_is_in_progress()) {
+			fastboot_fail("Virtual A/B is in progress, formatting is not allowed",
+					response);
+			return;
+		}
+	}
+#endif
 
 	fastboot_fail("no flash device defined", response);
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
@@ -375,6 +390,21 @@ static void erase(char *cmd_parameter, char *response)
 			return;
 		}
 	}
+
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+	/*
+	 * Need to protect userdata and metadata from erasing
+	 * while Virtual A/B update is in progress.
+	 */
+	if (!strcmp(cmd_parameter, "userdata") ||
+		!strcmp(cmd_parameter, "metadata")) {
+		if (virtual_ab_is_in_progress()) {
+			fastboot_fail("Virtual A/B is in progress, erase is not allowed",
+					response);
+			return;
+		}
+	}
+#endif
 
 	fastboot_fail("no flash device defined", response);
 #if CONFIG_IS_ENABLED(FASTBOOT_FLASH_MMC)
