@@ -147,11 +147,44 @@ static void slot_set_unbootable(AvbABSlotData* slot) {
  * canonical 'unbootable' state, e.g. priority=0, tries_remaining=0,
  * and successful_boot=0.
  */
-static void slot_normalize(AvbABSlotData* slot) {
+static void slot_normalize(AvbABSlotData* slot, uint8_t slot_idx) {
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+	struct misc_virtual_ab_message virtual_ab_msg;
+#endif
+
 	if (slot->priority > 0) {
 		if (slot->tries_remaining == 0 && !slot->successful_boot) {
 			/* We've exhausted all tries -> unbootable. */
 			slot_set_unbootable(slot);
+
+#if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
+			/*
+			 * For Virtual A/B we need to check probable slot switching
+			 * in case of unsuccessful kernel boot from new slot after
+			 * Virtual update. In such case we need to cancel virtual
+			 * update and record this to misc
+			 */
+			if (!load_virtual_ab_msg(&virtual_ab_msg)) {
+				printf("Failed to load /misc from MMC\n");
+				return;
+			}
+
+			/* Check if we previously applied update */
+			if ((virtual_ab_msg.merge_status == VIRTUAL_AB_SNAPSHOTED)
+				&& (virtual_ab_msg.source_slot != slot_idx))
+			{
+				/*
+				 * Okay, updated kernel on slot_idx failed, need to cancel
+				 * update in misc_virtual_ab_message to inform Android.
+				 */
+				virtual_ab_msg.merge_status = VIRTUAL_AB_CANCELLED;
+
+				if (save_virtual_ab_msg(&virtual_ab_msg))
+					printf("Virtual update for slot %u cancelled\n", slot_idx);
+				else
+					printf("Failed to save Virual A/B message to /misc\n");
+			}
+#endif
 		}
 		if (slot->tries_remaining > 0 && slot->successful_boot) {
 			/* Illegal state - avb_ab_mark_slot_successful() will clear
@@ -185,8 +218,8 @@ static AvbIOResult load_metadata(AvbABOps* ab_ops,
 	 * unbootable and all unbootable states are represented with
 	 * (priority=0, tries_remaining=0, successful_boot=0).
 	 */
-	slot_normalize(&ab_data->slots[0]);
-	slot_normalize(&ab_data->slots[1]);
+	slot_normalize(&ab_data->slots[0], 0);
+	slot_normalize(&ab_data->slots[1], 1);
 	return AVB_IO_RESULT_OK;
 }
 
@@ -563,6 +596,7 @@ const char* avb_ab_flow_result_to_string(AvbABFlowResult result) {
 
 	return ret;
 }
+
 #if CONFIG_IS_ENABLED(ANDROID_VIRTUAL_AB_UPDATE)
 void init_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
 	ab_msg->magic = MISC_VIRTUAL_AB_MAGIC_HEADER;
@@ -576,6 +610,23 @@ bool validate_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
 			(ab_msg->version <= MAX_VIRTUAL_AB_MESSAGE_VERSION) &&
 			(ab_msg->merge_status <= VIRTUAL_AB_CANCELLED) &&
 			(ab_msg->source_slot < AVB_AB_MAX_SLOTS));
+}
+
+bool save_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
+	int res = 0;
+
+	if(!validate_virtual_ab_msg(ab_msg)){
+		printf("Invalid Virtual A/B message passed for saving!");
+		return false;
+	}
+
+	res = write_to_part(CONFIG_FASTBOOT_FLASH_MMC_DEV, "misc",
+			SYSTEM_SPACE_OFFSET_IN_MISC, sizeof(*ab_msg),
+			ab_msg);
+	if (res)
+		printf("Failed to write Virtual A/B message to /misc!");
+
+	return !res;
 }
 
 bool load_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg) {
@@ -616,4 +667,3 @@ bool virtual_ab_is_in_progress(void) {
 		(ab_data.source_slot != avb_get_slot_index()));
 }
 #endif
-
