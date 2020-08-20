@@ -305,6 +305,12 @@ struct misc_virtual_ab_message {
 #define MISC_VIRTUAL_AB_MAGIC_HEADER 0x56740AB0
 #define AVB_AB_MAX_SLOTS 2
 
+/* Save Virtual A/B message struct to /misc system space */
+bool save_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg);
+
+/* Loads Virtual A/B message struct from /misc system space */
+bool load_virtual_ab_msg(struct misc_virtual_ab_message *ab_msg);
+
 /*
  * This function checks if Virtual A/B update is in progress. Until it
  * will not be finished we can not format userdata and metadata partitions.
