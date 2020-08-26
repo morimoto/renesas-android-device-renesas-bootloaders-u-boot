@@ -49,6 +49,7 @@ static void load_android_bootloader_params(void)
 	struct bootloader_message bcb;
 	char * bootmode = "android";
 	const char *reason;
+	int ignore_hw_keys;
 
 #if defined(CONFIG_FASTBOOT_BY_SW)
 struct confirm_pin_info *pin_info = gpio_get_user_confirm_pin();
@@ -63,8 +64,11 @@ if (!pin_info) {
 		return;
 	}
 
+	ignore_hw_keys = strstr(bcb.command, "android")  != NULL ||
+			 strstr(bcb.command, "recovery") != NULL;
+
 #if defined(CONFIG_FASTBOOT_BY_SW)
-	if (dm_gpio_get_value(&pin_info->gpio)) {
+	if (!ignore_hw_keys && dm_gpio_get_value(&pin_info->gpio)) {
 		bootmode = "fastboot";
 		printf("Entering to fastboot mode due pressed %s\n",
 				pin_info->name);
