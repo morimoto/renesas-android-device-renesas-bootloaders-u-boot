@@ -569,6 +569,11 @@ static void add_default_overlays(struct dt_overlays *overlays)
 #endif /* CONFIG_TARGET_SALVATOR_X */
 #endif /* defined(ENABLE_ADSP) */
 
+#if defined(ENABLE_CMS)
+	default_dtbo[default_dtbo_count] = CMS_DTBO_NAME;
+	++default_dtbo_count;
+#endif
+
 	default_dtbo[default_dtbo_count] = AVB_DTBO_NAME;
 	++default_dtbo_count;
 

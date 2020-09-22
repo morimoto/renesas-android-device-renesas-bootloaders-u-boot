@@ -61,6 +61,10 @@ ifeq ($(ENABLE_ADSP),true)
     UBOOT_KCFLAGS_ADSP = -DENABLE_ADSP
 endif
 
+ifeq ($(ENABLE_CMS),true)
+    UBOOT_KCFLAGS += -DENABLE_CMS
+endif
+
 UBOOT_SCAN_BUILD_CMD := $(abspath $(LLVM_PREBUILTS_PATH)/scan-build) \
 	-o $(OUT_DIR)/sb-reports/u-boot \
 	--use-analyzer=$(abspath $(LLVM_PREBUILTS_PATH)/clang)

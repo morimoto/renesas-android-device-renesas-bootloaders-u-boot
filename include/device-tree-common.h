@@ -45,6 +45,10 @@
 #define ADSP_SALV_DTBO_NAME		"salv-adsp"
 #endif
 
+#if defined(ENABLE_CMS)
+#define CMS_DTBO_NAME			"rcar-cms"
+#endif
+
 int load_dt_with_overlays(struct fdt_header *load_addr,
 				struct dt_table_header *dt_tbl,
 				struct dt_table_header *dto_tbl);
