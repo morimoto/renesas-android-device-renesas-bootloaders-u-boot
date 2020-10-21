@@ -180,7 +180,10 @@ static int oem_setenv(char * varval, char *response)
 	} else {
 		fastboot_send_response("INFOerase env %s", key);
 	}
-	env_set(key, finaltoken);
+	if (env_set(key, finaltoken)) {
+		fastboot_response("FAIL", response, "Setting environment variable '%s' error", key);
+		return -1;
+	}
 	if (env_save()) {
 		fastboot_response("FAIL", response, "Save environment variable '%s' error", key);
 		return -1;
