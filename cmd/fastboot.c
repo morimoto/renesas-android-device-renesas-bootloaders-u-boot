@@ -14,6 +14,9 @@
 #include <net.h>
 #include <usb.h>
 #include <watchdog.h>
+#ifdef CONFIG_VIDEO_RENESAS
+#include <rcar-logo.h>
+#endif
 
 static int do_fastboot_udp(int argc, char *const argv[],
 			   uintptr_t buf_addr, size_t buf_size)
@@ -104,6 +107,7 @@ int do_fastboot(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[])
 {
 	uintptr_t buf_addr = (uintptr_t)NULL;
 	size_t buf_size = 0;
+	int ret = 0;
 
 /* Use fastboot USB method by default for Renesas products */
 #ifndef CONFIG_USB_RENESAS_USBHS
@@ -148,6 +152,10 @@ NXTARG:
 		return CMD_RET_USAGE;
 	}
 #endif
+#ifdef CONFIG_VIDEO_RENESAS
+	do_logo_stop();
+	do_logo_start(1);
+#endif
 
 	fastboot_init((void *)buf_addr, buf_size);
 
@@ -159,7 +167,12 @@ NXTARG:
 		argc--;
 	}
 
-	return do_fastboot_usb(argc, argv, buf_addr, buf_size);
+	ret = do_fastboot_usb(argc, argv, buf_addr, buf_size);
+#ifdef CONFIG_VIDEO_RENESAS
+	do_logo_stop();
+	do_logo_start(0);
+#endif
+	return ret;
 }
 
 #ifdef CONFIG_SYS_LONGHELP

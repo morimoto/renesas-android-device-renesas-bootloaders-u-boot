@@ -22,6 +22,13 @@
 				type = "raw";
 				size = <0x0 0x80000>; /* 0.5 MB */
 			};
+#ifdef CONFIG_VIDEO_RENESAS
+			logo {
+				title = "logo";
+				type = "raw";
+				size = <0x0 0x800000>; /* 8 MB */
+			};
+#endif
 #ifndef CONFIG_OPTEE
 			pst {
 				title = "pst";

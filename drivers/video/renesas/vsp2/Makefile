@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-y += vsp1_drv.o
+obj-y += vsp1_entity.o
+obj-y += vsp1_pipe.o
+obj-y += vsp1_dl.o
+obj-y += vsp1_drm.o
+obj-y += vsp1_rpf.o
+obj-y += vsp1_wpf.o
+obj-y += vsp1_brx.o
+obj-y += vsp1_lif.o

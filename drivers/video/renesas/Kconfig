@@ -1,0 +1,26 @@
+menuconfig VIDEO_RENESAS
+	bool "Enable Renesas Video Support"
+	help
+	  Renesas SoCs provide video output capabilities for High-Definition
+	  Multimedia Interface (HDMI).
+
+config VIDEO_RENESAS_DISPLAY_WIDTH
+        int "Display horizontal resolution"
+	depends on VIDEO_RENESAS
+	default 1280
+
+config VIDEO_RENESAS_DISPLAY_HEIGHT
+        int "Display vertical resolution"
+	depends on VIDEO_RENESAS
+	default 720
+
+config VIDEO_RENESAS_BUF_ADDR
+        hex "Buffer address for loading logo images"
+	depends on VIDEO_RENESAS
+	default 0x58600000
+
+config VIDEO_RENESAS_BUF_SIZE
+        hex "Buffer size for loading logo images"
+	depends on VIDEO_RENESAS
+	default 0x2000
+

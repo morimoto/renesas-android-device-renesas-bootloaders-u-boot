@@ -520,6 +520,8 @@ config VIDEO_FSL_DCU_MAX_FB_SIZE_MB
 	 Set maximum framebuffer size to be used for Freescale Display
 	 Controller Unit (DCU4).
 
+source "drivers/video/renesas/Kconfig"
+
 source "drivers/video/rockchip/Kconfig"
 
 config VIDEO_ARM_MALIDP

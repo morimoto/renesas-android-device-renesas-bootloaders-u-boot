@@ -15,6 +15,9 @@
 #include <version.h>
 #include <fastboot.h>
 #include <asm/gpio.h>
+#ifdef CONFIG_VIDEO_RENESAS
+#include <rcar-logo.h>
+#endif
 
 #if defined(CONFIG_CMD_FASTBOOT)
 extern int do_fastboot(cmd_tbl_t *cmdtp, int flag, int argc, char *const argv[]);
@@ -123,6 +126,10 @@ void main_loop(void)
 
 	bootstage_mark_name(BOOTSTAGE_ID_MAIN_LOOP, "main_loop");
 
+#ifdef CONFIG_VIDEO_RENESAS
+	do_logo_stop();
+	do_logo_start(0);
+#endif
 	if (IS_ENABLED(CONFIG_VERSION_VARIABLE))
 		env_set("ver", version_string);  /* set version variable */
 

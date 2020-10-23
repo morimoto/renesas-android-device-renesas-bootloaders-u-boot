@@ -29,6 +29,9 @@
 #include <android/bootloader.h>
 #include <u-boot/crc.h>
 #include <u-boot/md5.h>
+#ifdef CONFIG_VIDEO_RENESAS
+#include <rcar-logo.h>
+#endif
 
 /*
  * Android Image booting support on R-Car Gen3 boards
@@ -823,6 +826,9 @@ int do_boota(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
 		new_argv[1] = argv[0];
 	}
 
+#ifdef CONFIG_VIDEO_RENESAS
+	do_logo_stop();
+#endif
 	ret = do_boot_avb(dev, &new_argv[1]);
 	if (ret == CMD_RET_SUCCESS) {
 		/* Android boot image structure pointer */
