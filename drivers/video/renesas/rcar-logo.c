@@ -65,34 +65,34 @@ int do_logo_start(int img_index)
 
 	if (rcar_clks_enable()) {
 		printf("%s: Clocks enable failed\n", __func__);
-		return -1;
+		goto err_clks;
 	}
 
 	if (dw_hdmi_probe()) {
 		printf("%s: HDMI probe failed\n", __func__);
-		return -1;
+		goto err_hdmi;
 	}
 
 	if (dw_hdmi_connector_detect() != 1) {
 		printf("%s: HDMI connector isn't detected\n", __func__);
-		return -1;
+		goto err_hdmi_conn;
 	}
 
 	dw_hdmi_bridge_enable();
 
 	if (vsp1_probe()) {
 		printf("%s: VSP probe failed\n", __func__);
-		return -1;
+		goto err_vsp1;
 	}
 
 	if (rcar_du_probe()) {
 		printf("%s: DU probe failed\n", __func__);
-		return -1;
+		goto err_du;
 	}
 
 	if (rcar_du_start()) {
 		printf("%s: DU start failed\n", __func__);
-		return -1;
+		goto err_du_start;
 	}
 
 	dcache_enable();
@@ -101,6 +101,27 @@ int do_logo_start(int img_index)
 	inProgress = 1;
 
 	return 0;
+
+err_du_start:
+	rcar_du_stop(); /* Need to disable the VSP, so call this function */
+
+err_du:
+	vsp1_remove();
+
+err_vsp1:
+	dw_hdmi_bridge_disable();
+
+err_hdmi_conn:
+	dw_hdmi_remove();
+
+err_hdmi:
+	rcar_clks_disable();
+
+err_clks:
+	dcache_enable();
+	icache_enable();
+
+	return -1;
 }
 
 void do_logo_stop(void)
