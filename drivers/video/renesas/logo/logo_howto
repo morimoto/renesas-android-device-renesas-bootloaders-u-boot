@@ -1,0 +1,18 @@
+Open file 'fastboot.xcf' in GIMP editor (1280x720)
+Update it if needed
+Export as Raw image data fastboot.data (B,G,R,X BMP save type)
+Run convertor: logo_convertor fastboot.data fastboot.argb
+Extend with zeros file up to 'CONFIG_VIDEO_RENESAS_BUF_SIZE * 512 - 4' bytes: truncate -s 4194300 fastboot.argb
+Add logo footer (without new line symbol): echo -n "logo" >> fastboot.argb
+
+
+Open file 'renesas.xcf' in GIMP editor (1280x720)
+Update it if needed
+Export as Raw image data renesas.data (B,G,R,X BMP save type)
+Run convertor: logo_convertor renesas.data renesas.argb
+Extend with zeros file up to 'CONFIG_VIDEO_RENESAS_BUF_SIZE * 512 - 4' bytes: truncate -s 4194300 renesas.argb
+Add logo footer (without new line symbol): echo -n "logo" >> renesas.argb
+
+
+Combine data: cat renesas.argb > logo.argb; cat fastboot.argb >> logo.argb
+Flash file 'logo.argb' into device
