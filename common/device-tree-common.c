@@ -785,7 +785,7 @@ int load_dt_with_overlays(struct fdt_header *load_addr,
 	 * Next sections is not critical - we can try to boot without overlays,
 	 * so if error occurs, function should return success code.
 	 */
-	if (!dto_tbl) {
+	if (!dto_tbl || !overlays) {
 		printf("DTO table is NULL, load without DT overlays\n");
 		return 0;
 	}
